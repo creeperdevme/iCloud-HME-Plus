@@ -4,10 +4,11 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
 import { beforeEach, describe, expect, it } from 'vitest'
 import type { ReactNode } from 'react'
+import { useState } from 'react'
 import { AuthProvider, useAuth } from './AuthProvider'
 import { server } from '../test/server'
 import LoginPage from '../pages/LoginPage'
-import { setCSRFToken } from '../api/client'
+import { ApiError, request, registerUnauthorizedHandler, setCSRFToken } from '../api/client'
 
 function ProtectedProbe() {
   const { status } = useAuth()
@@ -39,6 +40,7 @@ function renderApp(initialPath = '/accounts') {
 describe('AuthProvider + LoginPage', () => {
   beforeEach(() => {
     setCSRFToken(null)
+    registerUnauthorizedHandler(null)
     server.resetHandlers()
   })
 
@@ -174,7 +176,115 @@ describe('AuthProvider + LoginPage', () => {
       expect(screen.getByRole('heading', { name: 'iCloud HME 管理台' })).toBeInTheDocument(),
     )
   })
+
+  // 回归测试:面板"一直被登出"。
+  // 上游 iCloud 的鉴权失败属于业务错误,不得影响管理员会话。
+  // 两种状态码都要覆盖:502 是新后端的行为,401 是旧后端/防御性场景。
+  it.each([502, 401])(
+    '业务接口返回上游失效(HTTP %i)时管理员会话保持有效',
+    async (status) => {
+      server.use(
+        http.get('/api/auth/session', () =>
+          HttpResponse.json({
+            success: true,
+            data: {
+              csrf_token: 'csrf-abc',
+              expires_at: '2026-08-05T22:00:00+08:00',
+            },
+          }),
+        ),
+        http.get('/api/aliases', () =>
+          HttpResponse.json(
+            {
+              success: false,
+              code: 'UPSTREAM_UNAUTHORIZED',
+              message: 'iCloud 会话失效,请更新 Cookie',
+            },
+            { status },
+          ),
+        ),
+      )
+      renderBusinessApp()
+      await screen.findByTestId('protected')
+
+      const user = userEvent.setup()
+      await user.click(screen.getByRole('button', { name: '刷新别名' }))
+
+      expect(
+        await screen.findByText('iCloud 会话失效,请更新 Cookie'),
+      ).toBeInTheDocument()
+      // 关键:仍然停留在受保护页面,没有被登出
+      expect(screen.getByTestId('protected')).toBeInTheDocument()
+    },
+  )
+
+  it('业务接口返回 AUTH_REQUIRED 时确实登出', async () => {
+    server.use(
+      http.get('/api/auth/session', () =>
+        HttpResponse.json({
+          success: true,
+          data: {
+            csrf_token: 'csrf-abc',
+            expires_at: '2026-08-05T22:00:00+08:00',
+          },
+        }),
+      ),
+      http.get('/api/aliases', () =>
+        HttpResponse.json(
+          { success: false, code: 'AUTH_REQUIRED', message: '会话已失效,请重新登录' },
+          { status: 401 },
+        ),
+      ),
+    )
+    renderBusinessApp()
+    await screen.findByTestId('protected')
+
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: '刷新别名' }))
+
+    expect(
+      await screen.findByRole('heading', { name: 'iCloud HME 管理台' }),
+    ).toBeInTheDocument()
+  })
 })
+
+/** 渲染一个可以主动发起业务请求的受保护页面 */
+function renderBusinessApp() {
+  return render(
+    <MemoryRouter initialEntries={['/accounts']}>
+      <AuthProvider>
+        <Routes>
+          <Route path="/login" element={<TestApp />} />
+          <Route path="/accounts" element={<BusinessCallProbe />} />
+        </Routes>
+      </AuthProvider>
+    </MemoryRouter>,
+  )
+}
+
+function BusinessCallProbe() {
+  const { status } = useAuth()
+  const [error, setError] = useState('')
+
+  if (status === 'checking') return <p>loading…</p>
+  if (status === 'anonymous') return <LoginPage />
+
+  return (
+    <div>
+      <p data-testid="protected">已登录页面</p>
+      <button
+        onClick={() => {
+          void request('/api/aliases?account_id=acc_1').catch((err: unknown) => {
+            setError(err instanceof ApiError ? err.message : '网络连接失败，请检查服务状态')
+          })
+        }}
+      >
+        刷新别名
+      </button>
+      {error && <p>{error}</p>}
+    </div>
+  )
+}
 
 function LogoutProbe() {
   const { status, logout } = useAuth()

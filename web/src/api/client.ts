@@ -34,17 +34,36 @@ interface RequestOptions extends Omit<RequestInit, 'body'> {
   signal?: AbortSignal
 }
 
+/** 管理员会话失效时服务端返回的稳定错误码(见 internal/server/auth.go) */
+const AUTH_REQUIRED = 'AUTH_REQUIRED'
+
+/**
+ * 判断一次 401 响应是否代表"管理员会话失效"。
+ *
+ * 只有服务端明确返回 AUTH_REQUIRED 才算会话过期。上游 iCloud 的业务错误
+ * (UPSTREAM_UNAUTHORIZED / OTP_INVALID 等)不属于管理员会话问题,一旦把它们
+ * 也当成会话过期,任何 iCloud Cookie 过期都会把管理员踢回登录页。
+ *
+ * 响应体不是本服务的 JSON 时(例如反向代理直接拦截)按会话失效处理。
+ */
+function isSessionExpired(payload: ApiResponse<unknown> | null): boolean {
+  if (payload === null) return true
+  return payload.code === AUTH_REQUIRED
+}
+
 /**
  * 唯一的 fetch 入口。
  *
  * 统一设置 Accept、JSON Content-Type 与 credentials: same-origin;
- * 非 GET/HEAD/OPTIONS 自动携带 X-CSRF-Token;401 触发 onUnauthorized 回调。
+ * 非 GET/HEAD/OPTIONS 自动携带 X-CSRF-Token;
+ * 仅当服务端明确返回 401/AUTH_REQUIRED 时触发 onUnauthorized 回调。
  */
 export async function request<T>(
   path: string,
   init?: RequestOptions,
   onUnauthorized?: () => void,
-): Promise<T> {  const headers = new Headers(init?.headers)
+): Promise<T> {
+  const headers = new Headers(init?.headers)
   headers.set('Accept', 'application/json')
   headers.set('Content-Type', 'application/json')
 
@@ -71,15 +90,19 @@ export async function request<T>(
     throw new ApiError(0, 'NETWORK_ERROR', '网络连接失败，请检查服务状态')
   }
 
-  if (resp.status === 401) {
+  let payload: ApiResponse<T> | null
+  try {
+    payload = (await resp.json()) as ApiResponse<T>
+  } catch {
+    payload = null
+  }
+
+  if (resp.status === 401 && isSessionExpired(payload)) {
     onUnauthorized?.()
     unauthorizedHandler?.()
   }
 
-  let payload: ApiResponse<T>
-  try {
-    payload = (await resp.json()) as ApiResponse<T>
-  } catch {
+  if (payload === null) {
     throw new ApiError(resp.status, 'INVALID_RESPONSE', '网络连接失败，请检查服务状态')
   }
 

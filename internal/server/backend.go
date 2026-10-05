@@ -170,19 +170,23 @@ func (b *managerBackend) LoginAccount(id, password, otpCode string) (account.Sum
 }
 
 // classifyLoginErr 把 iCloud 登录错误映射为稳定错误。
+//
+// 注意:这里绝不能返回 HTTP 401。401 是本服务"管理员会话失效"的专用信号,
+// 前端 fetch 封装收到 401 会清空会话并跳回登录页。iCloud 账号登录时输错
+// OTP/密码属于业务错误,必须用其它状态码表达。
 func classifyLoginErr(err error) *BackendError {
 	msg := err.Error()
 	if strings.Contains(msg, "需要提供 OTP") {
 		return &BackendError{Status: http.StatusConflict, Code: "OTP_REQUIRED", Message: "需要提供 OTP 验证码"}
 	}
 	if strings.Contains(msg, "2FA 验证失败") {
-		return &BackendError{Status: http.StatusUnauthorized, Code: "OTP_INVALID", Message: "OTP 验证码错误"}
+		return &BackendError{Status: http.StatusBadRequest, Code: "OTP_INVALID", Message: "OTP 验证码错误"}
 	}
 	if strings.Contains(msg, "账号不存在") {
 		return &BackendError{Status: http.StatusNotFound, Code: "ACCOUNT_NOT_FOUND", Message: "账号不存在"}
 	}
 	if isSessionError(msg) {
-		return &BackendError{Status: http.StatusUnauthorized, Code: "UPSTREAM_UNAUTHORIZED", Message: "iCloud 会话失效,请更新 Cookie"}
+		return upstreamUnauthorizedErr()
 	}
 	return &BackendError{Status: http.StatusBadGateway, Code: "UPSTREAM_FAILURE", Message: "iCloud 登录失败,请稍后重试"}
 }
@@ -354,13 +358,28 @@ func mapAccountErr(err error) *BackendError {
 	return &BackendError{Status: http.StatusBadRequest, Code: "VALIDATION_ERROR", Message: msg}
 }
 
+// upstreamUnauthorizedErr 表示"上游 iCloud 会话失效"。
+//
+// 关键约定:上游鉴权失败必须返回 502,而不是 401。
+// 本服务的 401 只表示管理员会话失效(见 internal/server/auth.go 的
+// requireSession/handleSession),前端 api/client.ts 一旦收到 401 就会
+// 清空 CSRF token 并把界面切回登录页。若上游错误也用 401,那么任何
+// iCloud Cookie 过期(约 24 小时)、或输错一次 OTP,都会把管理员踢出面板。
+func upstreamUnauthorizedErr() *BackendError {
+	return &BackendError{
+		Status:  http.StatusBadGateway,
+		Code:    "UPSTREAM_UNAUTHORIZED",
+		Message: "iCloud 会话失效,请更新 Cookie",
+	}
+}
+
 // classifyUpstreamErr 把上游 (iCloud) 错误映射为稳定错误,不拼接上游响应体。
 func classifyUpstreamErr(fixedMsg string, err error) *BackendError {
 	if err == nil {
 		return nil
 	}
 	if isSessionError(err.Error()) {
-		return &BackendError{Status: http.StatusUnauthorized, Code: "UPSTREAM_UNAUTHORIZED", Message: "iCloud 会话失效,请更新 Cookie"}
+		return upstreamUnauthorizedErr()
 	}
 	return &BackendError{Status: http.StatusBadGateway, Code: "UPSTREAM_FAILURE", Message: fixedMsg}
 }

@@ -1,11 +1,12 @@
 import { http, HttpResponse } from 'msw'
 import { describe, expect, it, vi, beforeEach } from 'vitest'
-import { request, setCSRFToken } from './client'
+import { request, registerUnauthorizedHandler, setCSRFToken } from './client'
 import { server } from '../test/server'
 
 describe('api client', () => {
   beforeEach(() => {
     setCSRFToken(null)
+    registerUnauthorizedHandler(null)
     server.resetHandlers()
   })
 
@@ -56,6 +57,87 @@ describe('api client', () => {
     )
     request('/api/accounts', undefined, onUnauthorized).catch(() => {})
     await vi.waitFor(() => expect(onUnauthorized).toHaveBeenCalled())
+  })
+
+  // 回归测试:面板"一直被登出"。
+  // 上游 iCloud 的鉴权失败带的是自己的错误码,不是管理员会话失效;
+  // 若把它们也当成会话过期,任何 iCloud Cookie 过期都会把管理员踢回登录页。
+  it('401 但错误码不是 AUTH_REQUIRED 时不触发登出回调', async () => {
+    const onUnauthorized = vi.fn()
+    const globalHandler = vi.fn()
+    registerUnauthorizedHandler(globalHandler)
+    server.use(
+      http.get('/api/aliases', () =>
+        HttpResponse.json(
+          {
+            success: false,
+            code: 'UPSTREAM_UNAUTHORIZED',
+            message: 'iCloud 会话失效,请更新 Cookie',
+          },
+          { status: 401 },
+        ),
+      ),
+    )
+
+    await expect(
+      request('/api/aliases', undefined, onUnauthorized),
+    ).rejects.toMatchObject({ status: 401, code: 'UPSTREAM_UNAUTHORIZED' })
+
+    expect(onUnauthorized).not.toHaveBeenCalled()
+    expect(globalHandler).not.toHaveBeenCalled()
+  })
+
+  it('401 + AUTH_REQUIRED 同时触发局部与全局登出回调', async () => {
+    const onUnauthorized = vi.fn()
+    const globalHandler = vi.fn()
+    registerUnauthorizedHandler(globalHandler)
+    server.use(
+      http.get('/api/accounts', () =>
+        HttpResponse.json(
+          { success: false, code: 'AUTH_REQUIRED', message: '会话已失效,请重新登录' },
+          { status: 401 },
+        ),
+      ),
+    )
+
+    await expect(
+      request('/api/accounts', undefined, onUnauthorized),
+    ).rejects.toMatchObject({ status: 401, code: 'AUTH_REQUIRED' })
+
+    expect(onUnauthorized).toHaveBeenCalledTimes(1)
+    expect(globalHandler).toHaveBeenCalledTimes(1)
+  })
+
+  it('登录接口 401 INVALID_CREDENTIALS 不触发全局登出回调', async () => {
+    const globalHandler = vi.fn()
+    registerUnauthorizedHandler(globalHandler)
+    server.use(
+      http.post('/api/auth/login', () =>
+        HttpResponse.json(
+          { success: false, code: 'INVALID_CREDENTIALS', message: '管理员密码错误' },
+          { status: 401 },
+        ),
+      ),
+    )
+
+    await expect(
+      request('/api/auth/login', { method: 'POST', body: JSON.stringify({ password: 'x' }) }),
+    ).rejects.toMatchObject({ status: 401, code: 'INVALID_CREDENTIALS' })
+
+    expect(globalHandler).not.toHaveBeenCalled()
+  })
+
+  it('非 JSON 的 401(反向代理拦截)仍按会话失效处理', async () => {
+    const globalHandler = vi.fn()
+    registerUnauthorizedHandler(globalHandler)
+    server.use(
+      http.get('/api/accounts', () =>
+        new HttpResponse('<html>401 Unauthorized</html>', { status: 401 }),
+      ),
+    )
+
+    await expect(request('/api/accounts')).rejects.toThrow('网络连接失败')
+    expect(globalHandler).toHaveBeenCalledTimes(1)
   })
 
   it('GET 不带 CSRF,POST 自动带 CSRF', async () => {
