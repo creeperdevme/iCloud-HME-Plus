@@ -5,9 +5,12 @@
 package mail
 
 import (
+	"bytes"
+	"encoding/base64"
 	"fmt"
 	"io"
 	"mime"
+	"mime/multipart"
 	"mime/quotedprintable"
 	"net/mail"
 	"sort"
@@ -502,25 +505,102 @@ func decodeHeader(s string) string {
 }
 
 // readBody 讀取郵件正文,優先 text/plain,其次從 HTML 提取純文本。
+//
+// 會實際走訪 MIME 結構:multipart/* 逐層遞迴、quoted-printable 與 base64 解碼、
+// 非 UTF-8 字集轉換。
+//
+// 先前的版本只看最外層的 Content-Type,於是 multipart 郵件(幾乎所有真實信件都是)
+// 被當成純文字處理:整份 MIME 原始碼(含 boundary、各部分標頭、HTML 與 CSS)直接
+// 送進 sanitizePlainPreview,被誤判成 CSS 而清空,前端就顯示「(無內文)」。
 func readBody(msg *mail.Message) (string, error) {
-	ct := msg.Header.Get("Content-Type")
-	if strings.HasPrefix(ct, "text/html") {
-		raw, _ := io.ReadAll(msg.Body)
-		// quoted-printable 解碼
-		if strings.Contains(msg.Header.Get("Content-Transfer-Encoding"), "quoted-printable") {
-			r := quotedprintable.NewReader(strings.NewReader(string(raw)))
-			raw, _ = io.ReadAll(r)
-		}
-		return sanitizePreview(string(raw)), nil
+	plain, html := extractText(msg.Header, msg.Body)
+	if text := strings.TrimSpace(plain); text != "" {
+		return sanitizePlainPreview(text), nil
 	}
-	// 預設當 text/plain
-	raw, err := io.ReadAll(msg.Body)
+	return sanitizePreview(html), nil
+}
+
+// extractText 遞迴走訪郵件結構,分別取出純文字與 HTML 內容。
+//
+// multipart/alternative 的各部分由簡到繁排列,因此第一個非空的 text/plain 即為
+// 純文字版本;沒有純文字版本時才退回 HTML(由呼叫端處理)。
+func extractText(h mail.Header, body io.Reader) (plain, html string) {
+	mediaType, params, err := mime.ParseMediaType(h.Get("Content-Type"))
 	if err != nil {
-		return "", err
+		// Content-Type 缺失或無法解析時,保守當成純文字(與舊行為一致)
+		mediaType, params = "text/plain", nil
 	}
-	if strings.Contains(msg.Header.Get("Content-Transfer-Encoding"), "quoted-printable") {
-		r := quotedprintable.NewReader(strings.NewReader(string(raw)))
-		raw, _ = io.ReadAll(r)
+
+	if strings.HasPrefix(mediaType, "multipart/") {
+		boundary := params["boundary"]
+		if boundary == "" {
+			return "", ""
+		}
+		reader := multipart.NewReader(body, boundary)
+		for {
+			part, err := reader.NextPart()
+			if err != nil {
+				// io.EOF 代表正常結束;其他錯誤也無從補救,已取到的部分照用
+				break
+			}
+			partPlain, partHTML := extractText(mail.Header(part.Header), part)
+			_ = part.Close()
+			if plain == "" {
+				plain = partPlain
+			}
+			if html == "" {
+				html = partHTML
+			}
+		}
+		return plain, html
 	}
-	return sanitizePlainPreview(string(raw)), nil
+
+	raw, err := io.ReadAll(body)
+	if err != nil {
+		return "", ""
+	}
+	text := decodeCharset(params["charset"], decodeTransferEncoding(h.Get("Content-Transfer-Encoding"), raw))
+
+	switch mediaType {
+	case "text/plain":
+		return text, ""
+	case "text/html":
+		return "", text
+	default:
+		// text/calendar、application/* 與各種附件都不算正文
+		return "", ""
+	}
+}
+
+// decodeTransferEncoding 依 Content-Transfer-Encoding 解碼郵件內容。
+func decodeTransferEncoding(encoding string, raw []byte) []byte {
+	switch strings.ToLower(strings.TrimSpace(encoding)) {
+	case "quoted-printable":
+		if out, err := io.ReadAll(quotedprintable.NewReader(bytes.NewReader(raw))); err == nil {
+			return out
+		}
+	case "base64":
+		if out, err := io.ReadAll(base64.NewDecoder(base64.StdEncoding, bytes.NewReader(raw))); err == nil {
+			return out
+		}
+	}
+	return raw
+}
+
+// decodeCharset 把非 UTF-8 的內容轉成 UTF-8;無法辨識時原文回傳。
+func decodeCharset(name string, raw []byte) string {
+	label := strings.ToLower(strings.TrimSpace(name))
+	switch label {
+	case "", "utf-8", "utf8", "us-ascii", "ascii":
+		return string(raw)
+	}
+	reader, err := charset.Reader(label, bytes.NewReader(raw))
+	if err != nil {
+		return string(raw)
+	}
+	out, err := io.ReadAll(reader)
+	if err != nil {
+		return string(raw)
+	}
+	return string(out)
 }
