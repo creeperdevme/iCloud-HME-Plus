@@ -303,8 +303,6 @@ git tag v0.1.0 && git push origin --tags
 
 MIT License。本專案衍生自 [xiaozhou26/icloud-hme](https://github.com/xiaozhou26/icloud-hme)。
 
-友情連結：[LINUX DO](https://linux.do)
-
 ---
 
 ## English
