@@ -4,6 +4,8 @@ on:
   push:
     branches: [main]
   pull_request:
+  # 允許從 Actions 頁面手動執行（Run workflow），不必為了重跑而推空 commit
+  workflow_dispatch:
 
 permissions:
   contents: read
