@@ -129,18 +129,34 @@ X-CSRF-Token: <token>
   "icloud_email": "owner@icloud.com",
   "host": "icloud.com",
   "proxy": "http://user:pass@host:port",
-  "cookies": "X-APPLE-WEBAUTH-TOKEN=abc; X-APPLE-WEBAUTH-USER=def"
+  "cookies": "X-APPLE-WEBAUTH-TOKEN=abc; X-APPLE-WEBAUTH-USER=def",
+  "app_password": "xxxx-xxxx-xxxx-xxxx"
 }
 ```
 
-- `name` 必填，去除空白後 1–64 個字元
-- `icloud_email` 必填，以 `net/mail` 驗證且位址值必須等於輸入
+- `name` 可選，留空時以 iCloud 信箱的 Prefix 自動帶入；有值時去除空白後 1–64 個字元
+- `icloud_email` 必填，接受完整信箱或**只給 Prefix**（只給 Prefix 時會自動補上 `@<host>`）
 - `host` 只能是 `icloud.com` 或 `icloud.com.cn`（預設 `icloud.com`）
 - `proxy` 可選，必須是 `http`/`https`/`socks5` URL
 - `cookies` 可選，支援 Cookie Header 字串或 JSON 文字
+- `app_password` 可選，提供時會先以 IMAP 驗證，通過才儲存；**驗證失敗不會讓新增失敗**
 - 無 Cookie 時狀態為 `pending`，不會存取網路
 
 **成功回應：** `201`，回傳 `Summary`。
+
+`app_password` **未通過 IMAP 驗證**時，帳號仍會建立，但回應會多一個 `warning` 欄位，且
+`data.has_app_password` 為 `false`（代表密碼沒有存進去）：
+
+```json
+{
+  "success": true,
+  "warning": "帳號已建立，但 App 專用密碼未通過 IMAP 驗證，因此尚未設定；請確認密碼後用「App 密碼」重新設定。",
+  "data": { "id": "acc_xxx", "has_app_password": false, "...": "..." }
+}
+```
+
+> `warning` 只表示「成功但有非致命問題」；真正的失敗一律使用 `code`／`message`。
+> 呼叫端若送出了 `app_password`，應該檢查回應是否帶 `warning`，不能只看 `success`。
 
 ### 6. 編輯帳號基本資料
 
@@ -187,10 +203,22 @@ X-CSRF-Token: <token>
 POST /api/accounts/:id/password
 X-CSRF-Token: <token>
 
-{"icloud_email": "your_email@icloud.com", "app_password": "xxxx-xxxx-xxxx-xxxx"}
+{"app_password": "xxxx-xxxx-xxxx-xxxx"}
 ```
 
+- `app_password` 必填
+- `icloud_email` **選填**：留空時沿用該帳號已儲存的 iCloud 信箱，因此從既有帳號設定時
+  不必再輸入一次完整信箱。要改用其他信箱時才需要帶上
+
 伺服器端會以 IMAP 連線驗證憑證。成功時回傳 `Summary`；IMAP 驗證失敗時回傳 `502 UPSTREAM_FAILURE`。
+
+**錯誤：**
+
+| 狀態 | 代碼 | 時機 |
+| --- | --- | --- |
+| 400 | `VALIDATION_ERROR` | 缺 `app_password`；或未帶 `icloud_email` 且該帳號也還沒設定信箱 |
+| 404 | `ACCOUNT_NOT_FOUND` | `:id` 不存在（且未帶 `icloud_email` 時無法查詢） |
+| 502 | `UPSTREAM_FAILURE` | IMAP 驗證失敗（訊息不拼接上游細節） |
 
 ### 10. iCloud 密碼登入（取得 Cookie）
 

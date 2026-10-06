@@ -220,6 +220,7 @@ func (m *Manager) AddAccount(name, cookieInput, host, proxy string) (*Account, e
 //
 // Name 選填:留空時自動取 iCloud 信箱 Prefix 作為顯示名稱。
 // ICloudEmail 兼容兩種輸入:完整信箱,或僅 Prefix(自動補全 @host)。
+// AppPassword 選填:提供時先以 IMAP 驗證,通過才儲存。
 //
 // 無 Cookie 的新增路徑不訪問網路;有 Cookie 時在鎖外對快照執行工作階段校驗。
 func (m *Manager) AddAccountWithInput(input AddAccountInput) (Summary, error) {
@@ -245,6 +246,19 @@ func (m *Manager) AddAccountWithInput(input AddAccountInput) (Summary, error) {
 	if err != nil {
 		return Summary{}, err
 	}
+
+	// App 專用密碼為選填。驗證失敗**不阻擋帳號建立**,只是不儲存密碼:
+	// 與 Cookie 校驗失敗仍建立帳號(status=error)的既有慣例一致,
+	// 也避免 IMAP 一時不通就讓整個帳號新增失敗。呼叫端可由
+	// Summary.HasAppPassword 判斷密碼是否真的存進去了。
+	if pw := strings.TrimSpace(input.AppPassword); pw != "" {
+		if verr := verifyAppPassword(email, pw); verr == nil {
+			acc.AppPassword = pw
+		} else {
+			acc.LastError = truncate(verr.Error(), 300)
+		}
+	}
+
 	m.mu.Lock()
 	m.accounts[acc.ID] = acc
 	saveErr := m.save()
@@ -711,6 +725,19 @@ func (m *Manager) WebMailClient(id string) (*mail.WebClient, error) {
 	return mail.NewWebClient(snap.Cookies, dsid, snap.Host), nil
 }
 
+// verifyAppPassword 以 IMAP 實際登入一次,確認信箱與 App 專用密碼可用。
+//
+// 只做連線與讀取收件匣筆數,不保存任何東西;失敗回傳原始錯誤。
+func verifyAppPassword(icloudEmail, appPassword string) error {
+	mc := mail.NewClient(icloudEmail, appPassword)
+	if err := mc.Connect(); err != nil {
+		return err
+	}
+	_, err := mc.InboxCount()
+	mc.Disconnect()
+	return err
+}
+
 // SetAppPassword 設定 iCloud 信箱和 App 專用密碼,並測試 IMAP 連線。
 func (m *Manager) SetAppPassword(id, icloudEmail, appPassword string) error {
 	if icloudEmail == "" {
@@ -728,13 +755,7 @@ func (m *Manager) SetAppPassword(id, icloudEmail, appPassword string) error {
 	}
 
 	// 測試連線(鎖外)
-	mc := mail.NewClient(icloudEmail, appPassword)
-	if err := mc.Connect(); err != nil {
-		return err
-	}
-	count, err := mc.InboxCount()
-	mc.Disconnect()
-	if err != nil {
+	if err := verifyAppPassword(icloudEmail, appPassword); err != nil {
 		return err
 	}
 
@@ -749,7 +770,6 @@ func (m *Manager) SetAppPassword(id, icloudEmail, appPassword string) error {
 	if err := m.save(); err != nil {
 		return err
 	}
-	_ = count
 	return nil
 }
 

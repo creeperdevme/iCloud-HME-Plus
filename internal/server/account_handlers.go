@@ -7,6 +7,7 @@ package server
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"icloud-hme/internal/account"
@@ -18,13 +19,20 @@ func (s *Server) listAccountsHandler(c *gin.Context) {
 }
 
 // addAccountReq 是 POST /api/accounts 請求體。
+//
+// AppPassword 選填:與 Cookie 一樣可以在新增時就一起帶上,不必先建好帳號
+// 再另外設定。驗證失敗不會讓新增失敗,只會以 Warning 回報。
 type addAccountReq struct {
 	Name        string `json:"name"`
 	ICloudEmail string `json:"icloud_email"`
 	Cookies     string `json:"cookies"`
 	Host        string `json:"host"`
 	Proxy       string `json:"proxy"`
+	AppPassword string `json:"app_password"`
 }
+
+// appPasswordWarning 是「帳號已建立但 App 專用密碼沒存進去」的提示文字。
+const appPasswordWarning = "帳號已建立，但 App 專用密碼未通過 IMAP 驗證，因此尚未設定；請確認密碼後用「App 密碼」重新設定。"
 
 // addAccountHandler 處理 POST /api/accounts。
 func (s *Server) addAccountHandler(c *gin.Context) {
@@ -39,12 +47,18 @@ func (s *Server) addAccountHandler(c *gin.Context) {
 		CookieInput: req.Cookies,
 		Host:        req.Host,
 		Proxy:       req.Proxy,
+		AppPassword: req.AppPassword,
 	})
 	if err != nil {
 		backendFail(c, err)
 		return
 	}
-	c.JSON(http.StatusCreated, apiResp{Success: true, Data: sum})
+	// 有送密碼但摘要顯示沒存到,代表 IMAP 驗證沒過:帳號留著,另外提醒。
+	if req.AppPassword != "" && !sum.HasAppPassword {
+		createdWithWarning(c, sum, appPasswordWarning)
+		return
+	}
+	createdOK(c, sum)
 }
 
 // updateAccountReq 是 PATCH /api/accounts/:id 請求體。
@@ -130,6 +144,9 @@ func (s *Server) updateCookiesHandler(c *gin.Context) {
 }
 
 // setAppPasswordReq 是 POST /api/accounts/:id/password 請求體。
+//
+// ICloudEmail 選填:從既有帳號開啟時通常已經有信箱了,留空就沿用帳號上
+// 已儲存的位址,使用者不必再打一次完整信箱。
 type setAppPasswordReq struct {
 	ICloudEmail string `json:"icloud_email"`
 	AppPassword string `json:"app_password"`
@@ -139,11 +156,27 @@ type setAppPasswordReq struct {
 func (s *Server) setAppPasswordHandler(c *gin.Context) {
 	id := c.Param("id")
 	var req setAppPasswordReq
-	if err := c.ShouldBindJSON(&req); err != nil || req.ICloudEmail == "" || req.AppPassword == "" {
-		failCode(c, http.StatusBadRequest, "VALIDATION_ERROR", "參數錯誤：icloud_email、app_password 必填")
+	if err := c.ShouldBindJSON(&req); err != nil || req.AppPassword == "" {
+		failCode(c, http.StatusBadRequest, "VALIDATION_ERROR", "參數錯誤：app_password 必填")
 		return
 	}
-	sum, err := s.be.SetAppPassword(id, req.ICloudEmail, req.AppPassword)
+
+	email := strings.TrimSpace(req.ICloudEmail)
+	if email == "" {
+		// 未帶信箱時沿用帳號上已儲存的,維持「既有帳號不必重填」的行為。
+		sum, found := s.be.GetAccount(id)
+		if !found {
+			failCode(c, http.StatusNotFound, "ACCOUNT_NOT_FOUND", "帳號不存在")
+			return
+		}
+		email = strings.TrimSpace(sum.ICloudEmail)
+		if email == "" {
+			failCode(c, http.StatusBadRequest, "VALIDATION_ERROR", "此帳號尚未設定 iCloud 信箱，請先填寫完整信箱")
+			return
+		}
+	}
+
+	sum, err := s.be.SetAppPassword(id, email, req.AppPassword)
 	if err != nil {
 		backendFail(c, err)
 		return

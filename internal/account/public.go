@@ -67,12 +67,15 @@ type MailboxSummary struct {
 }
 
 // AddAccountInput 是新增帳號的輸入。
+//
+// AppPassword 為選填:提供時會先以 IMAP 驗證,通過才儲存。
 type AddAccountInput struct {
 	Name        string
 	ICloudEmail string
 	CookieInput string
 	Host        string
 	Proxy       string
+	AppPassword string
 }
 
 // UpdateAccountInput 是編輯帳號基本資訊的輸入,指標欄位表示可選。

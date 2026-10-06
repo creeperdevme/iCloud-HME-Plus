@@ -64,8 +64,9 @@ const accounts: AccountSummary[] = [
   },
 ]
 
-const accountsHandler = () =>
-  http.get('/api/accounts', () => HttpResponse.json({ success: true, data: accounts }))
+/** 帳號列表的 GET；預設回傳上面的固定清單，可傳入自訂清單覆寫。 */
+const accountsHandler = (list: AccountSummary[] = accounts) =>
+  http.get('/api/accounts', () => HttpResponse.json({ success: true, data: list }))
 
 /** 模擬「Get cookies.txt LOCALLY」匯出的內容（含註解與 #HttpOnly_ 行）。 */
 const netscapeBlob = [
@@ -177,6 +178,8 @@ describe('AccountsPage', () => {
     expect(posts[0].host).toBe('icloud.com')
     expect(posts[0].proxy).toBe('')
     expect(posts[0].cookies).toBe('')
+    // App 專用密碼欄位未填時送空字串,後端據此不設定密碼
+    expect(posts[0].app_password).toBe('')
 
     // 請求期間按鈕禁用
     await waitFor(() =>
@@ -188,6 +191,78 @@ describe('AccountsPage', () => {
     // 成功後重新載入列表
     expect(await screen.findByText('owner@icloud.com')).toBeInTheDocument()
     expect(getCalls).toBeGreaterThanOrEqual(2)
+  })
+
+  it('新增帳號:對話框內可直接填 App 專用密碼並一起送出', async () => {
+    const posts: Array<Record<string, unknown>> = []
+    server.use(
+      accountsHandler(),
+      http.post('/api/accounts', async ({ request }) => {
+        posts.push((await request.json()) as Record<string, unknown>)
+        return HttpResponse.json(
+          { success: true, data: { ...accounts[0], id: 'acc_new', has_app_password: true } },
+          { status: 201 },
+        )
+      }),
+    )
+
+    renderPage()
+    await screen.findByText('活躍號')
+    const { user, dialog } = await openCreateDialog()
+
+    // 欄位就在新增帳號對話框底下,不必先建帳號再另外設定
+    fireEvent.change(within(dialog).getByLabelText('iCloud 信箱 Prefix'), {
+      target: { value: 'owner' },
+    })
+    fireEvent.change(within(dialog).getByLabelText(/App 專用密碼/), {
+      target: { value: 'abcd-efgh-ijkl-mnop' },
+    })
+    await user.click(within(dialog).getByRole('button', { name: '新增帳號' }))
+
+    await waitFor(() => expect(posts).toHaveLength(1))
+    expect(posts[0].app_password).toBe('abcd-efgh-ijkl-mnop')
+    // 信箱只送 Prefix,不必填完整位址
+    expect(posts[0].icloud_email).toBe('owner')
+
+    // 密碼有存進去時只顯示一般的成功訊息
+    const toast = await screen.findByRole('status')
+    expect(toast).toHaveTextContent('帳號已儲存')
+    expect(toast.textContent).not.toContain('未通過')
+  })
+
+  it('新增帳號:App 專用密碼沒通過驗證時明白告知未設定', async () => {
+    server.use(
+      accountsHandler(),
+      http.post('/api/accounts', () =>
+        HttpResponse.json(
+          {
+            success: true,
+            data: { ...accounts[0], id: 'acc_new', has_app_password: false },
+            warning: '帳號已建立，但 App 專用密碼未通過 IMAP 驗證，因此尚未設定；請確認密碼後用「App 密碼」重新設定。',
+          },
+          { status: 201 },
+        ),
+      ),
+    )
+
+    renderPage()
+    await screen.findByText('活躍號')
+    const { user, dialog } = await openCreateDialog()
+
+    fireEvent.change(within(dialog).getByLabelText('iCloud 信箱 Prefix'), {
+      target: { value: 'owner' },
+    })
+    fireEvent.change(within(dialog).getByLabelText(/App 專用密碼/), {
+      target: { value: 'wrong-password' },
+    })
+    await user.click(within(dialog).getByRole('button', { name: '新增帳號' }))
+
+    // 帳號有建立,但 Toast 必須說清楚密碼沒設定,不能只說「已儲存」
+    const toast = await screen.findByRole('status')
+    expect(toast).toHaveTextContent('未通過 IMAP 驗證')
+    expect(toast.textContent).not.toBe('帳號已儲存')
+    // 對話框仍然關閉(帳號確實建好了)
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
   })
 
   it('新增帳號:Prefix 空白時前端阻擋且不發送請求', async () => {
@@ -443,6 +518,65 @@ describe('AccountsPage', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
   })
 
+  it('App Password:既有帳號不必再填完整 iCloud 信箱，只送密碼', async () => {
+    let pwdBody = ''
+    server.use(
+      accountsHandler(),
+      http.post('/api/accounts/:id/password', async ({ request }) => {
+        pwdBody = await request.text()
+        return HttpResponse.json({ success: true, data: accounts[0] })
+      }),
+    )
+
+    renderPage()
+    await screen.findByText('活躍號')
+    const user = userEvent.setup()
+    await user.click(screen.getAllByRole('button', { name: 'App 密碼' })[0])
+
+    // 不再出現「完整 iCloud 信箱」輸入框,改為顯示帳號已存的位址
+    const dialog = screen.getByRole('dialog')
+    expect(screen.queryByLabelText(/完整 iCloud 信箱/)).toBeNull()
+    expect(within(dialog).getByText('active@icloud.com')).toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText('App 專用密碼'), {
+      target: { value: 'xxxx-xxxx-xxxx-xxxx' },
+    })
+    await user.click(screen.getByRole('button', { name: '驗證並儲存' }))
+
+    await waitFor(() => expect(pwdBody).not.toBe(''))
+    const body = JSON.parse(pwdBody) as { icloud_email: string; app_password: string }
+    // 帶空字串讓後端沿用帳號上的信箱（前端不重送一份可能過期的位址）
+    expect(body.icloud_email).toBe('')
+    expect(body.app_password).toBe('xxxx-xxxx-xxxx-xxxx')
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+  })
+
+  it('App Password:帳號沒有信箱時仍需填寫，且未填不送出請求', async () => {
+    let posted = false
+    server.use(
+      accountsHandler([{ ...accounts[0], icloud_email: '' }]),
+      http.post('/api/accounts/:id/password', () => {
+        posted = true
+        return HttpResponse.json({ success: true, data: accounts[0] })
+      }),
+    )
+
+    renderPage()
+    await screen.findByText('活躍號')
+    const user = userEvent.setup()
+    await user.click(screen.getAllByRole('button', { name: 'App 密碼' })[0])
+
+    // 這種情況下才需要自己填
+    fireEvent.change(screen.getByLabelText(/完整 iCloud 信箱/), {
+      target: { value: 'typed@icloud.com' },
+    })
+    fireEvent.change(screen.getByLabelText('App 專用密碼'), { target: { value: '' } })
+    await user.click(screen.getByRole('button', { name: '驗證並儲存' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('請輸入 App 專用密碼')
+    expect(posted).toBe(false)
+  })
+
   it('App Password 提交後不保留已送出的密碼', async () => {
     let pwdBody = ''
     server.use(
@@ -457,21 +591,16 @@ describe('AccountsPage', () => {
     await screen.findByText('活躍號')
     const user = userEvent.setup()
     await user.click(screen.getAllByRole('button', { name: 'App 密碼' })[0])
-    fireEvent.change(screen.getByLabelText(/完整 iCloud 信箱/), {
-      target: { value: 'app@icloud.com' },
-    })
     fireEvent.change(screen.getByLabelText('App 專用密碼'), {
       target: { value: 'xxxx-xxxx-xxxx-xxxx' },
     })
     await user.click(screen.getByRole('button', { name: '驗證並儲存' }))
 
-    await waitFor(() => expect(pwdBody).toContain('app@icloud.com'))
-    expect(pwdBody).toContain('xxxx-xxxx-xxxx-xxxx')
+    await waitFor(() => expect(pwdBody).toContain('xxxx-xxxx-xxxx-xxxx'))
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
 
     // 重新開啟:欄位為空,不保留已送出的密碼
     await user.click(screen.getAllByRole('button', { name: 'App 密碼' })[0])
-    expect((screen.getByLabelText(/完整 iCloud 信箱/) as HTMLInputElement).value).toBe('')
     expect((screen.getByLabelText('App 專用密碼') as HTMLInputElement).value).toBe('')
   })
 

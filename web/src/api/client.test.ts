@@ -1,10 +1,12 @@
 import { http, HttpResponse } from 'msw'
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import {
+  addAccount,
   createTempMailbox,
   deleteTempMailbox,
   listTempMailboxes,
   request,
+  requestWithMeta,
   registerUnauthorizedHandler,
   setCSRFToken,
   setTempMailboxKeep,
@@ -29,6 +31,50 @@ describe('api client', () => {
     )
     const data = await request<{ id: string }>('/api/accounts')
     expect(data.id).toBe('acc_1')
+  })
+
+  it('requestWithMeta 一併取回後端的 warning', async () => {
+    server.use(
+      http.get('/api/accounts', () =>
+        HttpResponse.json({ success: true, data: { id: 'acc_1' }, warning: '注意事項' }),
+      ),
+    )
+    const { data, warning } = await requestWithMeta<{ id: string }>('/api/accounts')
+    expect(data.id).toBe('acc_1')
+    expect(warning).toBe('注意事項')
+  })
+
+  it('沒有 warning 時為空字串', async () => {
+    server.use(
+      http.get('/api/accounts', () => HttpResponse.json({ success: true, data: [] })),
+    )
+    const { warning } = await requestWithMeta('/api/accounts')
+    expect(warning).toBe('')
+  })
+
+  it('addAccount 會帶上 App 專用密碼並回傳 warning', async () => {
+    let body: Record<string, unknown> = {}
+    server.use(
+      http.post('/api/accounts', async ({ request: req }) => {
+        body = (await req.json()) as Record<string, unknown>
+        return HttpResponse.json(
+          { success: true, data: { id: 'acc_new' }, warning: '密碼未通過驗證' },
+          { status: 201 },
+        )
+      }),
+    )
+    const { data, warning } = await addAccount({
+      name: '',
+      icloud_email: 'owner',
+      host: 'icloud.com',
+      proxy: '',
+      cookies: '',
+      app_password: 'abcd-efgh-ijkl-mnop',
+    })
+    expect(data.id).toBe('acc_new')
+    expect(warning).toBe('密碼未通過驗證')
+    expect(body.app_password).toBe('abcd-efgh-ijkl-mnop')
+    expect(body.icloud_email).toBe('owner')
   })
 
   it('非 2xx 拋出 ApiError 並攜帶 code/message/status', async () => {

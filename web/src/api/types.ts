@@ -8,6 +8,11 @@ export interface ApiResponse<T> {
   data?: T
   code?: string
   message?: string
+  /**
+   * 成功但有非致命問題時的提示（例如新增帳號時 App 專用密碼沒通過驗證，
+   * 因此沒有儲存）。失敗一律走 code/message。
+   */
+  warning?: string
 }
 
 /** 帳號安全摘要（不含任何祕密欄位） */

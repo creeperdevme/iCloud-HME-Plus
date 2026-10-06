@@ -43,6 +43,8 @@ type InboxResult struct {
 // Backend 是可替換的業務介面;handler 只依賴本介面,測試使用記憶體 fake。
 type Backend interface {
 	ListAccounts() []account.Summary
+	// GetAccount 取單一帳號的安全摘要;第二個回傳值表示是否存在。
+	GetAccount(string) (account.Summary, bool)
 	AddAccount(account.AddAccountInput) (account.Summary, error)
 	UpdateAccount(string, account.UpdateAccountInput) (account.Summary, error)
 	UpdateProxy(string, string) (account.Summary, error)
@@ -69,6 +71,15 @@ type managerBackend struct {
 // ListAccounts 返回帳號安全摘要列表。
 func (b *managerBackend) ListAccounts() []account.Summary {
 	return b.mgr.ListSummaries()
+}
+
+// GetAccount 返回單一帳號的安全摘要。
+func (b *managerBackend) GetAccount(id string) (account.Summary, bool) {
+	acc, ok := b.mgr.GetAccount(id)
+	if !ok {
+		return account.Summary{}, false
+	}
+	return acc.Summary(), true
 }
 
 // AddAccount 新增帳號。

@@ -49,13 +49,32 @@ type fakeBackend struct {
 	createdLabel     string
 	createdErr       error
 	aliasDeleteCalls []string
+
+	// addHasAppPassword 決定 AddAccount 回報的摘要是否已帶 App 專用密碼。
+	addHasAppPassword bool
 }
 
 func (f *fakeBackend) ListAccounts() []account.Summary { return f.accounts }
 
+// GetAccount 讓 handler 能查既有帳號(例如設定 App 密碼時沿用已存的信箱)。
+func (f *fakeBackend) GetAccount(id string) (account.Summary, bool) {
+	for _, a := range f.accounts {
+		if a.ID == id {
+			return a, true
+		}
+	}
+	return account.Summary{}, false
+}
+
 func (f *fakeBackend) AddAccount(in account.AddAccountInput) (account.Summary, error) {
 	f.addedInput = in
-	return account.Summary{ID: "acc_new", Name: in.Name, Status: "pending"}, nil
+	// addHasAppPassword 讓測試模擬「App 專用密碼通過 / 未通過驗證」兩種結果。
+	return account.Summary{
+		ID:             "acc_new",
+		Name:           in.Name,
+		Status:         "pending",
+		HasAppPassword: f.addHasAppPassword,
+	}, nil
 }
 
 func (f *fakeBackend) UpdateAccount(id string, in account.UpdateAccountInput) (account.Summary, error) {

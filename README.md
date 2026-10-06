@@ -11,7 +11,8 @@
 - ✅ **列出所有別名** — 檢視帳號下的所有 HME 別名
 - ✅ **收取郵件** — 透過 IMAP 或 Web API 讀取寄到 HME 別名的郵件
 - ✅ **雙路徑讀信** — 郵件讀取優先走 IMAP (App Password)，無 App Password 時回退 Web API (Cookie)
-- ✅ **多帳號管理** — 支援多個 iCloud 帳號同時管理
+- ✅ **多帳號管理** — 支援多個 iCloud 帳號同時管理；新增時只要填信箱 Prefix，
+  Cookie 與 App 專用密碼都能在同一個對話框一起設定
 - ✅ **雙認證模式** — Cookie（建立別名 + 讀信回退）與 App Password（IMAP 優先）
 - ✅ **隨機信箱（臨時別名）** — 一鍵取得隨機 HME 信箱，預設 24 小時後自動刪除，可手動立即刪除或設為不自動刪除
 - ✅ **安全模型** — 單一管理員工作階段、CSRF 驗證、登入限流、回應脫敏
@@ -219,14 +220,20 @@ GET /api/accounts
 
 #### 新增帳號
 
-**簡化版（cookies 可選）:**
+`icloud_email` 可以只給 **Prefix**（`@` 後面的部分由 `host` 決定），`name` 留空會自動以
+Prefix 帶入，`cookies`、`app_password`、`proxy` 都是可選。
+
+> 在管理介面上，Cookie 與 App 專用密碼都可以在「新增帳號」對話框裡一次填好，
+> 不必先建立帳號再另外設定。
+
+**簡化版（只給 Prefix）:**
 
 ```bash
 POST /api/accounts
 
 # 請求主體
 {
-  "name": "新帳號",
+  "icloud_email": "owner",        # 只給 Prefix,會自動補成 owner@icloud.com
   "host": "icloud.com",           # 可選
   "proxy": "http://..."           # 可選
 }
@@ -236,35 +243,53 @@ POST /api/accounts
   "success": true,
   "data": {
     "id": "acc_xxx",
-    "name": "新帳號",
+    "name": "owner",              # 由 Prefix 自動帶入
+    "icloud_email": "owner@icloud.com",
     "status": "pending"
   }
 }
 ```
 
-**完整版（帶 Cookie）:**
+**完整版（帶 Cookie，可再加 App 專用密碼）:**
 
 ```bash
 POST /api/accounts
 
 # 請求主體
 {
-  "name": "新帳號",
+  "icloud_email": "owner",
   "cookies": "{\"x-apple-session-token\":\"token_value\"}",  # JSON 或 Header 格式
+  "app_password": "xxxx-xxxx-xxxx-xxxx",                      # 可選,會先以 IMAP 驗證
   "host": "icloud.com",           # 可選
   "proxy": "http://..."           # 可選
 }
+```
 
-# 回應
+`app_password` 沒通過 IMAP 驗證時**帳號仍會建立**，只是密碼不會被儲存；回應會多一個
+`warning` 欄位說明，且 `data.has_app_password` 為 `false`。管理介面會把這個情形顯示成
+提示訊息，而不是只說「已儲存」。
+
+```json
 {
   "success": true,
-  "data": {
-    "id": "acc_3",
-    "name": "新帳號",
-    "status": "active"
-  }
+  "warning": "帳號已建立，但 App 專用密碼未通過 IMAP 驗證，因此尚未設定；請確認密碼後用「App 密碼」重新設定。",
+  "data": { "id": "acc_xxx", "has_app_password": false }
 }
 ```
+
+**設定 App 專用密碼（既有帳號）:**
+
+```bash
+POST /api/accounts/:id/password
+
+# 請求主體 - icloud_email 可省略,留空會沿用帳號已儲存的信箱
+{
+  "app_password": "xxxx-xxxx-xxxx-xxxx"
+}
+```
+
+已建立的帳號不需要再打一次完整 iCloud 信箱；只有在要改用其他信箱時才需要帶
+`icloud_email`。
 
 #### 帳號登入（取得 Cookie）
 
@@ -483,6 +508,14 @@ App Password 用於 IMAP 讀取郵件,是郵件讀取的優先路徑 (支援伺�
 1. 登入 [appleid.apple.com](https://appleid.apple.com)
 2. 進入「登入與安全性」→「App 專用密碼」
 3. 產生新密碼,用於 iCloud HME Plus
+
+設定位置有兩個，效果相同：
+
+- **新增帳號時**在對話框裡直接填「App 專用密碼」（選填）。
+- 帳號列表上的「**App 密碼**」按鈕。從既有帳號開啟時，信箱會沿用該帳號已設定的位址並
+  直接顯示，**不必再輸入一次完整 iCloud 信箱**。
+
+兩種情況都會先以 IMAP 實際登入驗證，通過才儲存。
 
 ### 郵件讀取雙路徑
 

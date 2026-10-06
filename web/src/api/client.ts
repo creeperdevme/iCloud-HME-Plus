@@ -1,4 +1,10 @@
-import type { ApiResponse, TempMailbox, TempMailboxList, TempMailboxRemoval } from './types'
+import type {
+  AccountSummary,
+  ApiResponse,
+  TempMailbox,
+  TempMailboxList,
+  TempMailboxRemoval,
+} from './types'
 
 /** CSRF token，僅存於 React 記憶體狀態 */
 let csrfToken: string | null = null
@@ -52,17 +58,28 @@ function isSessionExpired(payload: ApiResponse<unknown> | null): boolean {
 }
 
 /**
+ * request() 的完整結果：除了 data 之外還帶後端的非致命提示。
+ *
+ * 只有需要讀 warning 的呼叫端才用這個；一般情況用 request() 取 data 就好。
+ */
+export interface RequestResult<T> {
+  data: T
+  /** 後端附加的提示；沒有時為空字串 */
+  warning: string
+}
+
+/**
  * 唯一的 fetch 入口。
  *
  * 統一設定 Accept、JSON Content-Type 與 credentials: same-origin；
  * 非 GET/HEAD/OPTIONS 自動攜帶 X-CSRF-Token；
  * 僅當伺服器明確回傳 401／AUTH_REQUIRED 時觸發 onUnauthorized 回呼。
  */
-export async function request<T>(
+export async function requestWithMeta<T>(
   path: string,
   init?: RequestOptions,
   onUnauthorized?: () => void,
-): Promise<T> {
+): Promise<RequestResult<T>> {
   const headers = new Headers(init?.headers)
   headers.set('Accept', 'application/json')
   headers.set('Content-Type', 'application/json')
@@ -113,7 +130,36 @@ export async function request<T>(
       payload.message ?? '請求失敗',
     )
   }
-  return payload.data as T
+  return { data: payload.data as T, warning: payload.warning ?? '' }
+}
+
+/** 送出一則請求並只取 data（多數呼叫端使用）。 */
+export async function request<T>(
+  path: string,
+  init?: RequestOptions,
+  onUnauthorized?: () => void,
+): Promise<T> {
+  return (await requestWithMeta<T>(path, init, onUnauthorized)).data
+}
+
+/**
+ * 新增 iCloud 帳號。
+ *
+ * 需要讀回 warning：帳號一定建得起來，但帶上的 App 專用密碼若沒通過 IMAP
+ * 驗證就不會被儲存，後端會用 warning 說明。
+ */
+export async function addAccount(body: {
+  name: string
+  icloud_email: string
+  host: string
+  proxy: string
+  cookies: string
+  app_password: string
+}): Promise<RequestResult<AccountSummary>> {
+  return requestWithMeta<AccountSummary>('/api/accounts', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
 }
 
 /* ------------------------------------------------------------------ *

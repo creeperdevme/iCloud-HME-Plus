@@ -5,12 +5,19 @@ import CookieFields, {
   toCookiePayload,
   type CookieValue,
 } from './CookieFields'
-import { request, ApiError } from '../api/client'
+import { request, addAccount, ApiError } from '../api/client'
+import type { AccountSummary } from '../api/types'
 
 interface AccountFormDialogProps {
   open: boolean
   onClose: () => void
-  onSaved: () => void
+  /**
+   * 儲存成功後呼叫。
+   *
+   * created 只在新增成功時帶入（編輯為 null）；warning 是後端的非致命提示,
+   * 例如 App 專用密碼沒通過驗證、因此沒有儲存。
+   */
+  onSaved: (result: { created: AccountSummary | null; warning: string }) => void
   editing?: {
     id: string
     name: string
@@ -35,7 +42,8 @@ function toPrefix(raw: string): string {
  * 新增 / 編輯帳號對話框。
  *
  * 新增時不必填名稱，iCloud 信箱只需填 Prefix（後綴由區域決定），
- * Cookie 可逐項填寫或貼上匯出檔自動識別。
+ * Cookie 可逐項填寫或貼上匯出檔自動識別，App 專用密碼為選填
+ * （填了就一起驗證，省去建立後再另外設定一次）。
  */
 export default function AccountFormDialog({
   open,
@@ -48,6 +56,7 @@ export default function AccountFormDialog({
   const [prefix, setPrefix] = useState(toPrefix(editing?.icloudEmail ?? ''))
   const [host, setHost] = useState(editing?.host ?? 'icloud.com')
   const [cookies, setCookies] = useState<CookieValue>(emptyCookieValue())
+  const [appPassword, setAppPassword] = useState('')
   const [proxy, setProxy] = useState('')
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -60,6 +69,7 @@ export default function AccountFormDialog({
     setPrefix('')
     setHost('icloud.com')
     setCookies(emptyCookieValue())
+    setAppPassword('')
     setProxy('')
     setError('')
     setSubmitting(false)
@@ -89,22 +99,22 @@ export default function AccountFormDialog({
             host,
           }),
         })
+        reset()
+        onSaved({ created: null, warning: '' })
       } else {
         const cookiePayload = toCookiePayload(cookies)
-        await request('/api/accounts', {
-          method: 'POST',
-          body: JSON.stringify({
-            // 名稱留空時由後端以 Prefix 自動推導
-            name: name.trim(),
-            icloud_email: prefix.trim(),
-            host,
-            proxy: proxy.trim(),
-            cookies: Object.keys(cookiePayload).length > 0 ? JSON.stringify(cookiePayload) : '',
-          }),
+        const { data, warning } = await addAccount({
+          // 名稱留空時由後端以 Prefix 自動推導
+          name: name.trim(),
+          icloud_email: prefix.trim(),
+          host,
+          proxy: proxy.trim(),
+          cookies: Object.keys(cookiePayload).length > 0 ? JSON.stringify(cookiePayload) : '',
+          app_password: appPassword.trim(),
         })
+        reset()
+        onSaved({ created: data, warning })
       }
-      reset()
-      onSaved()
     } catch (err) {
       setError(err instanceof ApiError ? err.message : '網路連線失敗，請檢查服務狀態')
     } finally {
@@ -118,7 +128,7 @@ export default function AccountFormDialog({
       description={
         isEdit
           ? '修改顯示名稱、信箱 Prefix 或區域。'
-          : '只需要 iCloud 信箱的 Prefix 與 Cookie，名稱留空會自動帶入。'
+          : '只需要 iCloud 信箱的 Prefix，名稱留空會自動帶入；Cookie 與 App 專用密碼都是選填。'
       }
       open={open}
       onClose={handleClose}
@@ -185,19 +195,47 @@ export default function AccountFormDialog({
         <>
           <CookieFields value={cookies} onChange={setCookies} />
 
-          <div className="form-field">
-            <label htmlFor="acc-proxy">
-              代理 <span className="hint" style={{ fontWeight: 400 }}>（選填）</span>
-            </label>
-            <input
-              id="acc-proxy"
-              type="text"
-              value={proxy}
-              onChange={(e) => setProxy(e.target.value)}
-              placeholder="http://user:pass@host:port"
-              autoComplete="off"
-              spellCheck={false}
-            />
+          <div className="form-row">
+            <div className="form-field">
+              <label htmlFor="acc-app-password">
+                App 專用密碼{' '}
+                <span className="hint" style={{ fontWeight: 400 }}>
+                  （選填）
+                </span>
+              </label>
+              <input
+                id="acc-app-password"
+                type="password"
+                value={appPassword}
+                onChange={(e) => setAppPassword(e.target.value)}
+                placeholder="xxxx-xxxx-xxxx-xxxx"
+                autoComplete="off"
+                spellCheck={false}
+              />
+              <p className="hint">
+                可於 appleid.apple.com → 登入與安全性 → App 專用密碼
+                產生。填寫後會立即以 IMAP 驗證，通過才儲存；信箱沿用上面的
+                {previewEmail ? ` ${previewEmail}` : ' Prefix'}，不必再打一次。
+              </p>
+            </div>
+
+            <div className="form-field">
+              <label htmlFor="acc-proxy">
+                代理{' '}
+                <span className="hint" style={{ fontWeight: 400 }}>
+                  （選填）
+                </span>
+              </label>
+              <input
+                id="acc-proxy"
+                type="text"
+                value={proxy}
+                onChange={(e) => setProxy(e.target.value)}
+                placeholder="http://user:pass@host:port"
+                autoComplete="off"
+                spellCheck={false}
+              />
+            </div>
           </div>
         </>
       )}

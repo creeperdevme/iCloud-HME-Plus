@@ -306,9 +306,11 @@ export default function AccountsPage() {
       <AccountFormDialog
         open={formOpen}
         onClose={() => setFormOpen(false)}
-        onSaved={() => {
+        onSaved={({ warning }) => {
           setFormOpen(false)
-          show('帳號已儲存')
+          // warning 代表帳號建好了、但帶上的 App 專用密碼沒通過驗證而沒儲存，
+          // 這時要講清楚，不能只說「已儲存」。
+          show(warning || '帳號已儲存')
           void load()
         }}
         editing={
@@ -352,6 +354,7 @@ export default function AccountsPage() {
       {appPwdFor && (
         <AppPasswordDialog
           accountId={appPwdFor.id}
+          icloudEmail={appPwdFor.icloud_email}
           open
           onClose={() => setAppPwdFor(null)}
           onSaved={() => {

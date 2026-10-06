@@ -209,6 +209,63 @@ func TestAddAccountWithInputNoNetwork(t *testing.T) {
 	}
 }
 
+// TestAddAccountWithInputAppPasswordDoesNotBlockCreation 驗證 App 專用密碼
+// 驗證失敗時**不會**讓帳號新增失敗,只是密碼沒有存進去。
+//
+// 這裡刻意不連任何 IMAP 伺服器,所以驗證必定失敗;重點是帳號仍要建立成功,
+// 而且摘要必須誠實地回報 HasAppPassword=false,讓上層可以提醒使用者。
+func TestAddAccountWithInputAppPasswordDoesNotBlockCreation(t *testing.T) {
+	dir := t.TempDir()
+	m, err := NewManager(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sum, err := m.AddAccountWithInput(AddAccountInput{
+		Name:        "主號",
+		ICloudEmail: "a@icloud.com",
+		AppPassword: "abcd-efgh-ijkl-mnop",
+	})
+	if err != nil {
+		t.Fatalf("App 專用密碼驗證失敗不應讓新增失敗: %v", err)
+	}
+	if sum.ID == "" {
+		t.Fatal("帳號應該要被建立")
+	}
+	if sum.HasAppPassword {
+		t.Fatal("未通過驗證的密碼不該被儲存")
+	}
+
+	// 帳號確實存在,而且之後可以補設定。
+	acc, found := m.GetAccount(sum.ID)
+	if !found {
+		t.Fatal("帳號應已寫入 manager")
+	}
+	if acc.AppPassword != "" {
+		t.Fatalf("未驗證的密碼不該寫入帳號: %q", acc.AppPassword)
+	}
+	// 錯誤原因有留下來(方便診斷),但不對外暴露。
+	if acc.LastError == "" {
+		t.Fatal("應記錄驗證失敗原因")
+	}
+}
+
+// TestAddAccountWithoutAppPasswordKeepsFieldEmpty 驗證沒填密碼時欄位保持空的。
+func TestAddAccountWithoutAppPasswordKeepsFieldEmpty(t *testing.T) {
+	dir := t.TempDir()
+	m, err := NewManager(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// 連 IMAP 都不該被嘗試:填了才會去連。
+	sum, err := m.AddAccountWithInput(AddAccountInput{Name: "主號", ICloudEmail: "a@icloud.com"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sum.HasAppPassword {
+		t.Fatal("沒填密碼時不該有 App 專用密碼")
+	}
+}
+
 // TestUpdateProxyInvalid 驗證非法代理報固定文案且不洩露 URL。
 func TestUpdateProxyInvalid(t *testing.T) {
 	dir := t.TempDir()

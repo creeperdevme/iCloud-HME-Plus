@@ -251,3 +251,200 @@ func TestAccountDeleteNotFound(t *testing.T) {
 }
 
 var _ = io.Discard
+
+// newAccountTestServer 起一個帶指定 fake 的測試伺服器並登入。
+func newAccountTestServer(t *testing.T, f *fakeBackend) (*httptest.Server, string, string) {
+	t.Helper()
+	s := newWithBackend(f, Config{
+		Debug:         false,
+		AdminPassword: "admin-pass-2026-strong",
+	})
+	ts := httptest.NewServer(s.Handler())
+	t.Cleanup(ts.Close)
+	sess, csrf := login(t, ts, "admin-pass-2026-strong")
+	return ts, sess, csrf
+}
+
+// postAuthed 送一個帶工作階段與 CSRF 的請求,回傳狀態碼與回應內容。
+func postAuthed(t *testing.T, ts *httptest.Server, sess, csrf, method, path, body string) (int, string) {
+	t.Helper()
+	req := authedReq(t, ts, method, path, body)
+	req.AddCookie(&http.Cookie{Name: "hme_session", Value: sess})
+	req.Header.Set("X-CSRF-Token", csrf)
+	status, respBody, _ := do(t, req)
+	return status, respBody
+}
+
+// TestAddAccountAcceptsAppPassword 驗證新增帳號時可以直接帶上 App 專用密碼。
+func TestAddAccountAcceptsAppPassword(t *testing.T) {
+	f := &fakeBackend{addHasAppPassword: true}
+	ts, sess, csrf := newAccountTestServer(t, f)
+
+	status, body := postAuthed(t, ts, sess, csrf, "POST", "/api/accounts",
+		`{"icloud_email":"owner","app_password":"abcd-efgh-ijkl-mnop"}`)
+	if status != http.StatusCreated {
+		t.Fatalf("期望 201,得到 %d: %s", status, body)
+	}
+	if f.addedInput.AppPassword != "abcd-efgh-ijkl-mnop" {
+		t.Fatalf("App 專用密碼沒有傳到 backend: %q", f.addedInput.AppPassword)
+	}
+	// 密碼有存進去,不該出現 warning。
+	var out struct {
+		Warning string `json:"warning"`
+	}
+	if err := json.Unmarshal([]byte(body), &out); err != nil {
+		t.Fatal(err)
+	}
+	if out.Warning != "" {
+		t.Fatalf("驗證成功不該有 warning,得到 %q", out.Warning)
+	}
+	// 回應不得洩露密碼本身。
+	if strings.Contains(body, "abcd-efgh-ijkl-mnop") {
+		t.Fatalf("回應洩露了 App 專用密碼: %s", body)
+	}
+}
+
+// TestAddAccountWarnsWhenAppPasswordRejected 驗證密碼沒通過時仍建立帳號,
+// 但以 warning 明確告知沒有存進去。
+func TestAddAccountWarnsWhenAppPasswordRejected(t *testing.T) {
+	f := &fakeBackend{addHasAppPassword: false}
+	ts, sess, csrf := newAccountTestServer(t, f)
+
+	status, body := postAuthed(t, ts, sess, csrf, "POST", "/api/accounts",
+		`{"icloud_email":"owner","app_password":"wrong-password"}`)
+	if status != http.StatusCreated {
+		t.Fatalf("帳號仍應建立(201),得到 %d: %s", status, body)
+	}
+	var out struct {
+		Success bool            `json:"success"`
+		Warning string          `json:"warning"`
+		Data    json.RawMessage `json:"data"`
+	}
+	if err := json.Unmarshal([]byte(body), &out); err != nil {
+		t.Fatal(err)
+	}
+	if !out.Success {
+		t.Fatalf("success 應為 true: %s", body)
+	}
+	if out.Warning == "" {
+		t.Fatalf("密碼未儲存時應帶 warning: %s", body)
+	}
+	if len(out.Data) == 0 {
+		t.Fatalf("仍應回傳帳號摘要: %s", body)
+	}
+}
+
+// TestAddAccountWithoutAppPasswordHasNoWarning 驗證沒填密碼時不會多出 warning。
+func TestAddAccountWithoutAppPasswordHasNoWarning(t *testing.T) {
+	f := &fakeBackend{}
+	ts, sess, csrf := newAccountTestServer(t, f)
+
+	status, body := postAuthed(t, ts, sess, csrf, "POST", "/api/accounts", `{"icloud_email":"owner"}`)
+	if status != http.StatusCreated {
+		t.Fatalf("期望 201,得到 %d: %s", status, body)
+	}
+	if strings.Contains(body, "warning") {
+		t.Fatalf("沒填密碼不該有 warning: %s", body)
+	}
+}
+
+// TestSetAppPasswordFallsBackToStoredEmail 驗證既有帳號不必再填完整 iCloud 信箱。
+func TestSetAppPasswordFallsBackToStoredEmail(t *testing.T) {
+	f := &fakeBackend{accounts: []account.Summary{{
+		ID:          "acc_1",
+		Name:        "主號",
+		ICloudEmail: "owner@icloud.com",
+	}}}
+	ts, sess, csrf := newAccountTestServer(t, f)
+
+	// 只送密碼,不送 icloud_email。
+	status, body := postAuthed(t, ts, sess, csrf, "POST", "/api/accounts/acc_1/password",
+		`{"app_password":"abcd-efgh-ijkl-mnop"}`)
+	if status != http.StatusOK {
+		t.Fatalf("期望 200,得到 %d: %s", status, body)
+	}
+	if f.appPwdID != "acc_1" {
+		t.Fatalf("帳號 id 不正確: %q", f.appPwdID)
+	}
+	if f.appPwdEmail != "owner@icloud.com" {
+		t.Fatalf("應沿用帳號已儲存的信箱,得到 %q", f.appPwdEmail)
+	}
+}
+
+// TestSetAppPasswordExplicitEmailWins 驗證明確帶信箱時以帶入的為準。
+func TestSetAppPasswordExplicitEmailWins(t *testing.T) {
+	f := &fakeBackend{accounts: []account.Summary{{
+		ID:          "acc_1",
+		Name:        "主號",
+		ICloudEmail: "old@icloud.com",
+	}}}
+	ts, sess, csrf := newAccountTestServer(t, f)
+
+	status, body := postAuthed(t, ts, sess, csrf, "POST", "/api/accounts/acc_1/password",
+		`{"icloud_email":"new@icloud.com","app_password":"abcd-efgh-ijkl-mnop"}`)
+	if status != http.StatusOK {
+		t.Fatalf("期望 200,得到 %d: %s", status, body)
+	}
+	if f.appPwdEmail != "new@icloud.com" {
+		t.Fatalf("應使用帶入的信箱,得到 %q", f.appPwdEmail)
+	}
+}
+
+// TestSetAppPasswordErrors 驗證各種失敗情境的狀態碼與錯誤碼。
+func TestSetAppPasswordErrors(t *testing.T) {
+	cases := []struct {
+		name    string
+		fake    *fakeBackend
+		path    string
+		body    string
+		status  int
+		code    string
+		wantMsg string
+	}{
+		{
+			name:   "缺少 app_password",
+			fake:   &fakeBackend{accounts: []account.Summary{{ID: "acc_1", ICloudEmail: "a@icloud.com"}}},
+			path:   "/api/accounts/acc_1/password",
+			body:   `{"icloud_email":"a@icloud.com"}`,
+			status: 400, code: "VALIDATION_ERROR",
+		},
+		{
+			name:   "帳號不存在",
+			fake:   &fakeBackend{},
+			path:   "/api/accounts/acc_missing/password",
+			body:   `{"app_password":"abcd-efgh-ijkl-mnop"}`,
+			status: 404, code: "ACCOUNT_NOT_FOUND",
+		},
+		{
+			name:   "帳號沒有已存信箱又沒帶",
+			fake:   &fakeBackend{accounts: []account.Summary{{ID: "acc_1", Name: "無信箱"}}},
+			path:   "/api/accounts/acc_1/password",
+			body:   `{"app_password":"abcd-efgh-ijkl-mnop"}`,
+			status: 400, code: "VALIDATION_ERROR",
+			// 訊息要引導使用者去填信箱,而不是只說參數錯誤。
+			wantMsg: "完整信箱",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			ts, sess, csrf := newAccountTestServer(t, tc.fake)
+			status, body := postAuthed(t, ts, sess, csrf, "POST", tc.path, tc.body)
+			if status != tc.status {
+				t.Fatalf("期望 %d,得到 %d: %s", tc.status, status, body)
+			}
+			var out struct {
+				Code    string `json:"code"`
+				Message string `json:"message"`
+			}
+			if err := json.Unmarshal([]byte(body), &out); err != nil {
+				t.Fatal(err)
+			}
+			if out.Code != tc.code {
+				t.Fatalf("期望 code=%s,得到 %q", tc.code, out.Code)
+			}
+			if tc.wantMsg != "" && !strings.Contains(out.Message, tc.wantMsg) {
+				t.Fatalf("訊息應包含 %q,得到 %q", tc.wantMsg, out.Message)
+			}
+		})
+	}
+}
