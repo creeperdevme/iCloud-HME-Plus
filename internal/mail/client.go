@@ -1,7 +1,7 @@
-// Package mail 实现 iCloud 邮件 IMAP 读取客户端。
+// Package mail 實現 iCloud 郵件 IMAP 讀取用戶端。
 //
-// 通过 Apple 应用专用密码连接 imap.mail.me.com:993,
-// 拉取隐私邮箱别名收到的邮件。对应原 Python 项目 icloud_mail.py。
+// 通過 Apple 應用專用密碼連線 imap.mail.me.com:993,
+// 拉取隱私信箱別名收到的郵件。對應原 Python 項目 icloud_mail.py。
 package mail
 
 import (
@@ -24,7 +24,7 @@ const (
 	IMAPPort   = 993
 )
 
-// Message 是一封邮件的摘要信息。
+// Message 是一封郵件的摘要資訊。
 type Message struct {
 	ID      string `json:"id"`
 	From    string `json:"from"`
@@ -34,14 +34,14 @@ type Message struct {
 	Preview string `json:"preview"`
 }
 
-// FullMessage 是一封邮件的完整内容(含正文)。
+// FullMessage 是一封郵件的完整內容(含正文)。
 type FullMessage struct {
 	Message
 	Body        string `json:"body"`
 	ContentType string `json:"content_type"`
 }
 
-// Client 是 iCloud 邮件 IMAP 客户端。
+// Client 是 iCloud 郵件 IMAP 用戶端。
 type Client struct {
 	username string
 	password string
@@ -50,7 +50,7 @@ type Client struct {
 	cli      *client.Client
 }
 
-// NewClient 创建 IMAP 客户端。需在调用其它方法前先 Connect。
+// NewClient 建立 IMAP 用戶端。需在呼叫其它方法前先 Connect。
 func NewClient(appleID, appPassword string) *Client {
 	return NewClientWithServer(appleID, appPassword, IMAPServer, IMAPPort)
 }
@@ -60,7 +60,7 @@ func NewClientWithServer(username, password, server string, port int) *Client {
 	return &Client{username: username, password: password, server: server, port: port}
 }
 
-// Connect 连接并登录 IMAP 服务器。已连接且存活时直接复用。
+// Connect 連線並登入 IMAP 伺服器。已連線且存活時直接複用。
 func (c *Client) Connect() error {
 	if c.cli != nil {
 		if err := c.cli.Noop(); err == nil {
@@ -71,25 +71,25 @@ func (c *Client) Connect() error {
 	addr := fmt.Sprintf("%s:%d", c.server, c.port)
 	cli, err := client.DialTLS(addr, nil)
 	if err != nil {
-		return fmt.Errorf("IMAP 连接失败: %w", err)
+		return fmt.Errorf("IMAP 連線失敗：%w", err)
 	}
 	if err := cli.Login(c.username, c.password); err != nil {
 		_ = cli.Logout()
-		return fmt.Errorf("IMAP 登录失败 — 请检查邮箱账号、授权码和服务器地址: %w", err)
+		return fmt.Errorf("IMAP 登入失敗 — 請檢查信箱帳號、授權碼與伺服器位址：%w", err)
 	}
 	c.cli = cli
 	return nil
 }
 
-// Ping 探测连接是否仍可用(NOOP)。
+// Ping 探測連線是否仍可用(NOOP)。
 func (c *Client) Ping() error {
 	if c.cli == nil {
-		return fmt.Errorf("未连接")
+		return fmt.Errorf("尚未連線")
 	}
 	return c.cli.Noop()
 }
 
-// Disconnect 登出并关闭连接。
+// Disconnect 登出並關閉連線。
 func (c *Client) Disconnect() {
 	if c.cli != nil {
 		_ = c.cli.Logout()
@@ -97,7 +97,7 @@ func (c *Client) Disconnect() {
 	}
 }
 
-// forceClose 不发 LOGOUT, 直接掐断(坏连接/池丢弃时用)。
+// forceClose 不發 LOGOUT, 直接掐斷(壞連線/池丟棄時用)。
 func (c *Client) forceClose() {
 	if c.cli != nil {
 		_ = c.cli.Terminate()
@@ -105,10 +105,10 @@ func (c *Client) forceClose() {
 	}
 }
 
-// InboxCount 返回收件箱邮件总数。
+// InboxCount 返回收件匣郵件總數。
 func (c *Client) InboxCount() (int, error) {
 	if c.cli == nil {
-		return 0, fmt.Errorf("未连接")
+		return 0, fmt.Errorf("尚未連線")
 	}
 	mbox, err := c.cli.Select("INBOX", false)
 	if err != nil {
@@ -117,13 +117,13 @@ func (c *Client) InboxCount() (int, error) {
 	return int(mbox.Messages), nil
 }
 
-// ListInbox 拉取收件箱最近 limit 封邮件摘要。
+// ListInbox 拉取收件匣最近 limit 封郵件摘要。
 //
-// days 用于过滤只看近 N 天的邮件(0 表示不限制)。
-// 返回按时间倒序排列。
+// days 用於過濾只看近 N 天的郵件(0 表示不限制)。
+// 返回按時間倒序排列。
 func (c *Client) ListInbox(limit int, days int) ([]Message, error) {
 	if c.cli == nil {
-		return nil, fmt.Errorf("未连接")
+		return nil, fmt.Errorf("尚未連線")
 	}
 	if limit <= 0 {
 		limit = 50
@@ -138,7 +138,7 @@ func (c *Client) ListInbox(limit int, days int) ([]Message, error) {
 		return []Message{}, nil
 	}
 
-	// 计算起始序号(只取最近 limit 封)
+	// 計算起始序號(只取最近 limit 封)
 	from := uint32(1)
 	if uint32(limit) < mbox.Messages {
 		from = mbox.Messages - uint32(limit) + 1
@@ -147,7 +147,7 @@ func (c *Client) ListInbox(limit int, days int) ([]Message, error) {
 	seqset := new(imap.SeqSet)
 	seqset.AddRange(from, mbox.Messages)
 
-	// 拉取完整正文,以便填充 Preview(OTP 验证码在正文中); PEEK 不标已读
+	// 拉取完整正文,以便填充 Preview(OTP 驗證碼在正文中); PEEK 不標已讀
 	section := &imap.BodySectionName{Peek: true}
 	items := []imap.FetchItem{
 		imap.FetchUid,
@@ -165,7 +165,7 @@ func (c *Client) ListInbox(limit int, days int) ([]Message, error) {
 	var out []Message
 	for msg := range messages {
 		m := toMessageWithBody(msg)
-		// days 过滤
+		// days 過濾
 		if days > 0 {
 			if t, err := time.Parse(time.RFC1123Z, m.Date); err == nil {
 				if time.Since(t) > time.Duration(days)*24*time.Hour {
@@ -182,26 +182,26 @@ func (c *Client) ListInbox(limit int, days int) ([]Message, error) {
 	return out, nil
 }
 
-// FindByRecipient 查找发给指定隐私邮箱别名的最近 limit 封邮件(新→旧)。
+// FindByRecipient 查找發給指定隱私信箱別名的最近 limit 封郵件(新→舊)。
 //
-// 先尝试 IMAP TO 搜索; 失败则只扫收件箱最近若干封本地过滤。
+// 先嘗試 IMAP TO 搜索; 失敗則只掃收件匣最近若干封本地過濾。
 func (c *Client) FindByRecipient(recipient string, limit int, days int) ([]Message, error) {
 	var out []Message
 	err := c.ForEachByRecipient(recipient, limit, days, func(m Message) bool {
 		out = append(out, m)
-		return true // 收满 limit 为止
+		return true // 收滿 limit 為止
 	})
 	return out, err
 }
 
-// ForEachByRecipient 按新→旧遍历发给 recipient 的最近 limit 封邮件。
-// onMsg 返回 false 时立即停止(用于 OTP 命中即返回)。
+// ForEachByRecipient 按新→舊遍歷發給 recipient 的最近 limit 封郵件。
+// onMsg 返回 false 時立即停止(用於 OTP 命中即返回)。
 func (c *Client) ForEachByRecipient(recipient string, limit int, days int, onMsg func(Message) bool) error {
 	if c.cli == nil {
-		return fmt.Errorf("未连接")
+		return fmt.Errorf("尚未連線")
 	}
 	if onMsg == nil {
-		return fmt.Errorf("onMsg 不能为空")
+		return fmt.Errorf("onMsg 不能為空")
 	}
 	if limit <= 0 {
 		limit = 5
@@ -211,7 +211,7 @@ func (c *Client) ForEachByRecipient(recipient string, limit int, days int, onMsg
 		return err
 	}
 
-	// 1) 服务端按 To 搜索
+	// 1) 服務端按 To 搜索
 	criteria := imap.NewSearchCriteria()
 	criteria.Header.Add("To", recipient)
 	if days > 0 {
@@ -219,7 +219,7 @@ func (c *Client) ForEachByRecipient(recipient string, limit int, days int, onMsg
 	}
 	uids, err := c.cli.UidSearch(criteria)
 	if err == nil && len(uids) > 0 {
-		// UID 升序 → 取最后 limit 个(最新) → 倒序遍历
+		// UID 升序 → 取最後 limit 個(最新) → 倒序遍歷
 		uids = newestUIDs(uids, limit)
 		for i := len(uids) - 1; i >= 0; i-- {
 			m, ferr := c.fetchOneUID(uids[i])
@@ -233,11 +233,11 @@ func (c *Client) ForEachByRecipient(recipient string, limit int, days int, onMsg
 		return nil
 	}
 
-	// 2) fallback: 只扫最近 N 封信封, 命中 To 再拉 body
+	// 2) fallback: 只掃最近 N 封信封, 命中 To 再拉 body
 	return c.forEachRecentMatching(recipient, limit, days, onMsg)
 }
 
-// newestUIDs 保留 UID 列表中最新的 limit 个(假定 UID 升序)。
+// newestUIDs 保留 UID 列表中最新的 limit 個(假定 UID 升序)。
 func newestUIDs(uids []uint32, limit int) []uint32 {
 	if limit <= 0 || len(uids) <= limit {
 		return uids
@@ -245,7 +245,7 @@ func newestUIDs(uids []uint32, limit int) []uint32 {
 	return uids[len(uids)-limit:]
 }
 
-// forEachRecentMatching 拉取收件箱最近 scan 封(仅 envelope), 本地按 To 过滤后再取 body。
+// forEachRecentMatching 拉取收件匣最近 scan 封(僅 envelope), 本地按 To 過濾後再取 body。
 func (c *Client) forEachRecentMatching(recipient string, limit int, days int, onMsg func(Message) bool) error {
 	mbox, err := c.cli.Select("INBOX", true)
 	if err != nil {
@@ -255,7 +255,7 @@ func (c *Client) forEachRecentMatching(recipient string, limit int, days int, on
 	if total == 0 {
 		return nil
 	}
-	// 只扫最近 scan 封, 避免全箱
+	// 只掃最近 scan 封, 避免全箱
 	scan := limit * 4
 	if scan < 20 {
 		scan = 20
@@ -270,7 +270,7 @@ func (c *Client) forEachRecentMatching(recipient string, limit int, days int, on
 	seqset := new(imap.SeqSet)
 	seqset.AddRange(from, mbox.Messages)
 
-	// 仅 envelope + date, 不拉 body
+	// 僅 envelope + date, 不拉 body
 	items := []imap.FetchItem{imap.FetchUid, imap.FetchEnvelope, imap.FetchInternalDate}
 	messages := make(chan *imap.Message, scan)
 	done := make(chan error, 1)
@@ -310,7 +310,7 @@ func (c *Client) forEachRecentMatching(recipient string, limit int, days int, on
 	if err := <-done; err != nil {
 		return err
 	}
-	// 新→旧
+	// 新→舊
 	for i := 0; i < len(cands); i++ {
 		for j := i + 1; j < len(cands); j++ {
 			if cands[j].date.After(cands[i].date) {
@@ -335,7 +335,7 @@ func (c *Client) forEachRecentMatching(recipient string, limit int, days int, on
 	return nil
 }
 
-// fetchOneUID 拉取单封邮件(含 body preview), 使用 BODY.PEEK 不标已读。
+// fetchOneUID 拉取單封郵件(含 body preview), 使用 BODY.PEEK 不標已讀。
 func (c *Client) fetchOneUID(uid uint32) (Message, error) {
 	seqset := new(imap.SeqSet)
 	seqset.AddNum(uid)
@@ -351,7 +351,7 @@ func (c *Client) fetchOneUID(uid uint32) (Message, error) {
 		return Message{}, err
 	}
 	if msg == nil {
-		return Message{}, fmt.Errorf("邮件不存在 (uid=%d)", uid)
+		return Message{}, fmt.Errorf("郵件不存在（uid=%d）", uid)
 	}
 	return toMessageWithBody(msg), nil
 }
@@ -362,7 +362,7 @@ func (c *Client) fetchByUIDs(uids []uint32, limit int) ([]Message, error) {
 	}
 	uids = newestUIDs(uids, limit)
 	var out []Message
-	// 新→旧
+	// 新→舊
 	for i := len(uids) - 1; i >= 0; i-- {
 		m, err := c.fetchOneUID(uids[i])
 		if err != nil {
@@ -373,10 +373,10 @@ func (c *Client) fetchByUIDs(uids []uint32, limit int) ([]Message, error) {
 	return out, nil
 }
 
-// GetFull 获取单封邮件的完整内容(含正文)。
+// GetFull 取得單封郵件的完整內容(含正文)。
 func (c *Client) GetFull(uid uint32) (*FullMessage, error) {
 	if c.cli == nil {
-		return nil, fmt.Errorf("未连接")
+		return nil, fmt.Errorf("尚未連線")
 	}
 	if _, err := c.cli.Select("INBOX", true); err != nil {
 		return nil, err
@@ -397,7 +397,7 @@ func (c *Client) GetFull(uid uint32) (*FullMessage, error) {
 		return nil, err
 	}
 	if msg == nil {
-		return nil, fmt.Errorf("邮件不存在 (uid=%d)", uid)
+		return nil, fmt.Errorf("郵件不存在（uid=%d）", uid)
 	}
 
 	full := &FullMessage{Message: toMessage(msg)}
@@ -412,13 +412,13 @@ func (c *Client) GetFull(uid uint32) (*FullMessage, error) {
 	return full, nil
 }
 
-// Delete 删除收件箱中指定 UID 的邮件。
+// Delete 刪除收件匣中指定 UID 的郵件。
 func (c *Client) Delete(uid uint32) error {
 	if c.cli == nil {
-		return fmt.Errorf("未连接")
+		return fmt.Errorf("尚未連線")
 	}
 	if uid == 0 {
-		return fmt.Errorf("邮件 UID 无效")
+		return fmt.Errorf("郵件 UID 無效")
 	}
 	if _, err := c.cli.Select("INBOX", false); err != nil {
 		return err
@@ -465,10 +465,10 @@ func toMessage(msg *imap.Message) Message {
 	return m
 }
 
-// toMessageWithBody 在 toMessage 基础上解析正文填充 Preview(供 OTP 提取)。
+// toMessageWithBody 在 toMessage 基礎上解析正文填充 Preview(供 OTP 提取)。
 func toMessageWithBody(msg *imap.Message) Message {
 	m := toMessage(msg)
-	// Fetch 可能用 BODY[] 或 BODY.PEEK[], 两种 section 都试
+	// Fetch 可能用 BODY[] 或 BODY.PEEK[], 兩種 section 都試
 	for _, section := range []*imap.BodySectionName{{Peek: true}, {}} {
 		r := msg.GetBody(section)
 		if r == nil {
@@ -488,7 +488,7 @@ func toMessageWithBody(msg *imap.Message) Message {
 	return m
 }
 
-// decodeHeader 解码 RFC 2047 编码的邮件头(如 =?UTF-8?B?xxx?=)。
+// decodeHeader 解碼 RFC 2047 編碼的郵件頭(如 =?UTF-8?B?xxx?=)。
 func decodeHeader(s string) string {
 	if s == "" {
 		return ""
@@ -501,19 +501,19 @@ func decodeHeader(s string) string {
 	return out
 }
 
-// readBody 读取邮件正文,优先 text/plain,其次从 HTML 提取纯文本。
+// readBody 讀取郵件正文,優先 text/plain,其次從 HTML 提取純文本。
 func readBody(msg *mail.Message) (string, error) {
 	ct := msg.Header.Get("Content-Type")
 	if strings.HasPrefix(ct, "text/html") {
 		raw, _ := io.ReadAll(msg.Body)
-		// quoted-printable 解码
+		// quoted-printable 解碼
 		if strings.Contains(msg.Header.Get("Content-Transfer-Encoding"), "quoted-printable") {
 			r := quotedprintable.NewReader(strings.NewReader(string(raw)))
 			raw, _ = io.ReadAll(r)
 		}
 		return sanitizePreview(string(raw)), nil
 	}
-	// 默认当 text/plain
+	// 預設當 text/plain
 	raw, err := io.ReadAll(msg.Body)
 	if err != nil {
 		return "", err

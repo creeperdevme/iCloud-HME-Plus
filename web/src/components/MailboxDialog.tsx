@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import Dialog from './Dialog'
 import { request, ApiError } from '../api/client'
 import type { MailboxSummary } from '../api/types'
@@ -11,74 +11,146 @@ interface MailboxDialogProps {
   onSaved: () => void
 }
 
-export default function MailboxDialog({ accountId, current, open, onClose, onSaved }: MailboxDialogProps) {
+const PRESETS: Record<string, { host: string; port: number }> = {
+  qq: { host: 'imap.qq.com', port: 993 },
+  gmail: { host: 'imap.gmail.com', port: 993 },
+  outlook: { host: 'outlook.office365.com', port: 993 },
+}
+
+/**
+ * 接入外部收件信箱（IMAP）。
+ *
+ * 由呼叫端以條件渲染掛載，因此初始值直接取自 props 即可，不需要 effect 同步。
+ */
+export default function MailboxDialog({
+  accountId,
+  current,
+  open,
+  onClose,
+  onSaved,
+}: MailboxDialogProps) {
   const [provider, setProvider] = useState(current?.provider || 'qq')
   const [email, setEmail] = useState(current?.email || '')
-  const [host, setHost] = useState(current?.imap_host || 'imap.qq.com')
-  const [port, setPort] = useState(String(current?.imap_port || 993))
+  const [host, setHost] = useState(current?.imap_host || PRESETS.qq.host)
+  const [port, setPort] = useState(String(current?.imap_port || PRESETS.qq.port))
   const [code, setCode] = useState('')
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
-  useEffect(() => {
-    if (!open) return
-    setProvider(current?.provider || 'qq')
-    setEmail(current?.email || '')
-    setHost(current?.imap_host || 'imap.qq.com')
-    setPort(String(current?.imap_port || 993))
-    setCode('')
-    setError('')
-  }, [open, current])
-
   function changeProvider(value: string) {
     setProvider(value)
-    const presets: Record<string, [string, number]> = {
-      qq: ['imap.qq.com', 993],
-      gmail: ['imap.gmail.com', 993],
-      outlook: ['outlook.office365.com', 993],
-    }
-    if (presets[value]) {
-      setHost(presets[value][0])
-      setPort(String(presets[value][1]))
+    const preset = PRESETS[value]
+    if (preset) {
+      setHost(preset.host)
+      setPort(String(preset.port))
     }
   }
 
   async function handleSubmit() {
     if (submitting) return
+    if (!email.trim() || !host.trim() || !code.trim()) {
+      setError('請填寫收件信箱、IMAP 伺服器與授權碼')
+      return
+    }
     setSubmitting(true)
     setError('')
     try {
       await request(`/api/accounts/${accountId}/mailbox`, {
         method: 'PUT',
-        body: JSON.stringify({ provider, email, imap_host: host, imap_port: Number(port), authorization_code: code }),
+        body: JSON.stringify({
+          provider,
+          email: email.trim(),
+          imap_host: host.trim(),
+          imap_port: Number(port),
+          authorization_code: code.trim(),
+        }),
       })
       onSaved()
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : '收件邮箱接入失败')
+      setError(err instanceof ApiError ? err.message : '收件信箱接入失敗')
     } finally {
       setSubmitting(false)
     }
   }
 
   return (
-    <Dialog title="接入收件邮箱" open={open} onClose={onClose}>
-      {error && <div className="alert-error" role="alert">{error}</div>}
+    <Dialog
+      title="接入收件信箱"
+      description="別名收到的郵件會轉寄到這個信箱，之後可直接在收件匣頁面讀取。"
+      open={open}
+      onClose={onClose}
+    >
+      {error && (
+        <div className="alert alert-error" role="alert">
+          {error}
+        </div>
+      )}
       <div className="form-field">
-        <label htmlFor="mailbox-provider">邮箱服务商</label>
-        <select id="mailbox-provider" value={provider} onChange={(e) => changeProvider(e.target.value)}>
-          <option value="qq">QQ 邮箱</option>
+        <label htmlFor="mailbox-provider">信箱服務商</label>
+        <select
+          id="mailbox-provider"
+          value={provider}
+          onChange={(e) => changeProvider(e.target.value)}
+        >
+          <option value="qq">QQ 信箱</option>
           <option value="gmail">Gmail</option>
           <option value="outlook">Outlook</option>
-          <option value="custom">其他</option>
+          <option value="custom">其他（自訂 IMAP）</option>
         </select>
       </div>
-      <div className="form-field"><label htmlFor="mailbox-email">收件邮箱</label><input id="mailbox-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} /></div>
-      <div className="form-field"><label htmlFor="mailbox-host">IMAP 服务器</label><input id="mailbox-host" value={host} onChange={(e) => setHost(e.target.value)} /></div>
-      <div className="form-field"><label htmlFor="mailbox-port">SSL 端口</label><input id="mailbox-port" type="number" min="1" max="65535" value={port} onChange={(e) => setPort(e.target.value)} /></div>
-      <div className="form-field"><label htmlFor="mailbox-code">邮箱授权码</label><input id="mailbox-code" type="password" autoComplete="off" value={code} onChange={(e) => setCode(e.target.value)} /></div>
+
+      <div className="form-row">
+        <div className="form-field">
+          <label htmlFor="mailbox-email">收件信箱</label>
+          <input
+            id="mailbox-email"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            autoComplete="off"
+          />
+        </div>
+        <div className="form-field">
+          <label htmlFor="mailbox-code">信箱授權碼</label>
+          <input
+            id="mailbox-code"
+            type="password"
+            autoComplete="off"
+            value={code}
+            onChange={(e) => setCode(e.target.value)}
+          />
+        </div>
+      </div>
+
+      <div className="form-row">
+        <div className="form-field">
+          <label htmlFor="mailbox-host">IMAP 伺服器</label>
+          <input
+            id="mailbox-host"
+            value={host}
+            onChange={(e) => setHost(e.target.value)}
+            autoComplete="off"
+            spellCheck={false}
+          />
+        </div>
+        <div className="form-field">
+          <label htmlFor="mailbox-port">SSL 連接埠</label>
+          <input
+            id="mailbox-port"
+            type="number"
+            min="1"
+            max="65535"
+            value={port}
+            onChange={(e) => setPort(e.target.value)}
+          />
+        </div>
+      </div>
+
       <div className="form-actions">
         <button onClick={onClose}>取消</button>
-        <button className="primary" onClick={() => void handleSubmit()} disabled={submitting}>{submitting ? '验证中…' : '验证并接入'}</button>
+        <button className="primary" onClick={() => void handleSubmit()} disabled={submitting}>
+          {submitting ? '驗證中…' : '驗證並接入'}
+        </button>
       </div>
     </Dialog>
   )

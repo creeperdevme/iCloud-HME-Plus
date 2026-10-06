@@ -1,7 +1,7 @@
-// Package hme - iCloud 认证模块
+// Package hme - iCloud 認證模塊
 //
-// 基于 Go-iClient 项目实现完整的 SRP (Secure Remote Password) 登录流程,
-// 支持双重认证 (2FA),登录成功后提取 session token Cookie。
+// 基於 Go-iClient 項目實現完整的 SRP (Secure Remote Password) 登入流程,
+// 支援雙重認證 (2FA),登入成功後提取 session token Cookie。
 package hme
 
 import (
@@ -20,7 +20,7 @@ import (
 	"icloud-hme/internal/srp"
 )
 
-// AuthEndpoints iCloud 认证 API 端点
+// AuthEndpoints iCloud 認證 API 端點
 const (
 	OAuthClientID = "d39ba9916b7251055b22c7f910e2ea796ee65e98b2ddecea8f5dde8d9d1a815d"
 
@@ -35,10 +35,10 @@ const (
 	authValidateFmt = "https://setup.icloud.com/setup/ws/1/validate?clientBuildNumber=%s&clientMasteringNumber=%s&clientId=%s"
 )
 
-// OTPProvider 双重认证回调函数,返回 2FA 验证码
+// OTPProvider 雙重認證回呼函式,返回 2FA 驗證碼
 type OTPProvider func() (string, error)
 
-// authState 保存认证过程中的状态
+// authState 儲存認證過程中的狀態
 type authState struct {
 	username   string
 	password   string
@@ -52,10 +52,10 @@ type authState struct {
 	dsid       string
 }
 
-// Login 使用 iCloud 账号密码登录,获取 session token Cookie。
+// Login 使用 iCloud 帳號密碼登入,取得 session token Cookie。
 //
-// 登录成功后,可以通过 client.GetCookies() 获取 Cookie。
-// 启用 2FA 时,会调用 otpProvider 获取验证码。
+// 登入成功後,可以通過 client.GetCookies() 取得 Cookie。
+// 啟用 2FA 時,會呼叫 otpProvider 取得驗證碼。
 func (c *Client) Login(username, password string, otpProvider OTPProvider) error {
 	state := &authState{
 		username: username,
@@ -67,23 +67,23 @@ func (c *Client) Login(username, password string, otpProvider OTPProvider) error
 		return fmt.Errorf("auth start: %w", err)
 	}
 
-	// 2. 提交用户名
+	// 2. 提交使用者名稱
 	if err := c.authFederate(state); err != nil {
 		return fmt.Errorf("auth federate: %w", err)
 	}
 
-	// 3. SRP 协议初始化
+	// 3. SRP 協議初始化
 	params := srp.GetParams(2048)
 	params.NoUserNameInX = true
 	srpClient := srp.NewSRPClient(params, nil)
 
-	// 4. 获取 salt 和 B
+	// 4. 取得 salt 和 B
 	authInitResp, err := c.authInit(state, base64.StdEncoding.EncodeToString(srpClient.GetABytes()))
 	if err != nil {
 		return fmt.Errorf("auth init: %w", err)
 	}
 
-	// 5. 解码 salt 和 B
+	// 5. 解碼 salt 和 B
 	bDec, err := base64.StdEncoding.DecodeString(authInitResp.B)
 	if err != nil {
 		return fmt.Errorf("decode B: %w", err)
@@ -93,36 +93,36 @@ func (c *Client) Login(username, password string, otpProvider OTPProvider) error
 		return fmt.Errorf("decode salt: %w", err)
 	}
 
-	// 6. 生成密码密钥
+	// 6. 產生密碼金鑰
 	passHash := sha256.Sum256([]byte(password))
 	passKey := pbkdf2.Key(passHash[:], saltDec, authInitResp.Iteration, 32, sha256.New)
 
-	// 7. 处理挑战
+	// 7. 處理挑戰
 	srpClient.ProcessClientChanllenge([]byte(username), passKey, saltDec, bDec)
 
-	// 8. 提交 SRP 响应 (可能触发 2FA)
+	// 8. 提交 SRP 回應 (可能觸發 2FA)
 	if err := c.authComplete(state, base64.StdEncoding.EncodeToString(srpClient.M1), base64.StdEncoding.EncodeToString(srpClient.M2), otpProvider); err != nil {
 		return fmt.Errorf("auth complete: %w", err)
 	}
 
-	// 9. 信任设备
+	// 9. 信任設備
 	if err := c.getTrust(state); err != nil {
 		return fmt.Errorf("get trust: %w", err)
 	}
 
-	// 10. 获取 iCloud Web 服务 Cookie
+	// 10. 取得 iCloud Web 服務 Cookie
 	if err := c.authenticateWeb(state); err != nil {
 		return fmt.Errorf("authenticate web: %w", err)
 	}
 
-	// 11. 保存 Cookie 到 Client
+	// 11. 儲存 Cookie 到 Client
 	cookies := c.extractSessionCookies()
 	c.Cookies = cookies
-	c.log("登录成功,获取到 %d 个 Cookie", len(cookies))
+	c.log("登入成功，取得 %d 個 Cookie", len(cookies))
 	return nil
 }
 
-// --- 认证流程的各步骤 ---
+// --- 認證流程的各步驟 ---
 
 // authStart 初始化 frameId 和 clientId
 func (c *Client) authStart(state *authState) error {
@@ -151,7 +151,7 @@ func (c *Client) authStart(state *authState) error {
 	return nil
 }
 
-// authFederate 提交用户名
+// authFederate 提交使用者名稱
 func (c *Client) authFederate(state *authState) error {
 	data := `{"accountName":"` + state.username + `","rememberMe":true}`
 	req, err := http.NewRequest("POST", authFederate, bytes.NewReader([]byte(data)))
@@ -174,7 +174,7 @@ func (c *Client) authFederate(state *authState) error {
 	return nil
 }
 
-// authInitResp authInit 响应
+// authInitResp authInit 回應
 type authInitResp struct {
 	Iteration int    `json:"iteration"`
 	Salt      string `json:"salt"`
@@ -183,7 +183,7 @@ type authInitResp struct {
 	C         string `json:"c"`
 }
 
-// authInit 初始化 SRP 认证
+// authInit 初始化 SRP 認證
 func (c *Client) authInit(state *authState, a string) (*authInitResp, error) {
 	reqBody := map[string]interface{}{
 		"a":           a,
@@ -217,7 +217,7 @@ func (c *Client) authInit(state *authState, a string) (*authInitResp, error) {
 	return &result, nil
 }
 
-// authComplete 提交 SRP 响应
+// authComplete 提交 SRP 回應
 func (c *Client) authComplete(state *authState, m1, m2 string, otpProvider OTPProvider) error {
 	reqBody := map[string]interface{}{
 		"accountName": state.username,
@@ -254,29 +254,29 @@ func (c *Client) authComplete(state *authState, m1, m2 string, otpProvider OTPPr
 		// 需要 2FA
 		return c.handleTwoFactor(state, resp, otpProvider)
 	case 403:
-		return fmt.Errorf("用户名或密码错误")
+		return fmt.Errorf("使用者名稱或密碼錯誤")
 	case 412:
-		return fmt.Errorf("需要先在 appleid.apple.com 同意隐私条款")
+		return fmt.Errorf("需要先在 appleid.apple.com 同意隱私條款")
 	default:
-		return fmt.Errorf("auth complete 失败: HTTP %d", resp.StatusCode)
+		return fmt.Errorf("auth complete 失敗：HTTP %d", resp.StatusCode)
 	}
 }
 
-// handleTwoFactor 处理双重认证
+// handleTwoFactor 處理雙重認證
 func (c *Client) handleTwoFactor(state *authState, signinResp *http.Response, otpProvider OTPProvider) error {
 	state.sessionID = signinResp.Header.Get("X-Apple-ID-Session-Id")
 	state.scnt = signinResp.Header.Get("scnt")
 
 	if otpProvider == nil {
-		return fmt.Errorf("账号启用了双重认证,需要提供 OTP")
+		return fmt.Errorf("帳號已啟用雙重認證，需要提供 OTP")
 	}
 
 	otp, err := otpProvider()
 	if err != nil {
-		return fmt.Errorf("获取 2FA 验证码失败: %w", err)
+		return fmt.Errorf("取得 2FA 驗證碼失敗：%w", err)
 	}
 
-	// 提交 2FA 验证码
+	// 提交 2FA 驗證碼
 	reqBody := map[string]interface{}{
 		"securityCode": map[string]string{"code": otp},
 	}
@@ -297,7 +297,7 @@ func (c *Client) handleTwoFactor(state *authState, signinResp *http.Response, ot
 	defer resp.Body.Close()
 
 	if resp.StatusCode != 204 {
-		return fmt.Errorf("2FA 验证失败: HTTP %d", resp.StatusCode)
+		return fmt.Errorf("2FA 驗證失敗：HTTP %d", resp.StatusCode)
 	}
 
 	if newScnt := resp.Header.Get("scnt"); newScnt != "" {
@@ -306,7 +306,7 @@ func (c *Client) handleTwoFactor(state *authState, signinResp *http.Response, ot
 	return nil
 }
 
-// getTrust 获取 trust token
+// getTrust 取得 trust token
 func (c *Client) getTrust(state *authState) error {
 	req, err := http.NewRequest("GET", authTrust, nil)
 	if err != nil {
@@ -322,7 +322,7 @@ func (c *Client) getTrust(state *authState) error {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != 204 {
-		return fmt.Errorf("trust 失败: HTTP %d", resp.StatusCode)
+		return fmt.Errorf("trust 失敗：HTTP %d", resp.StatusCode)
 	}
 
 	state.authToken = resp.Header.Get("X-Apple-Session-Token")
@@ -330,7 +330,7 @@ func (c *Client) getTrust(state *authState) error {
 	return nil
 }
 
-// authenticateWeb 认证 iCloud Web 服务
+// authenticateWeb 認證 iCloud Web 服務
 func (c *Client) authenticateWeb(state *authState) error {
 	body := fmt.Sprintf(`{"dsWebAuthToken":"%s","accountCountryCode":"USA","extended_login":true,"trustToken":"%s"}`,
 		state.authToken, state.trustToken)
@@ -351,7 +351,7 @@ func (c *Client) authenticateWeb(state *authState) error {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != 200 {
-		return fmt.Errorf("auth web 失败: HTTP %d", resp.StatusCode)
+		return fmt.Errorf("auth web 失敗：HTTP %d", resp.StatusCode)
 	}
 
 	var result struct {
@@ -362,7 +362,7 @@ func (c *Client) authenticateWeb(state *authState) error {
 	json.NewDecoder(resp.Body).Decode(&result)
 	state.dsid = result.DsInfo.Dsid
 
-	// 复制 idmsa.apple.com 的 Cookie 到 icloud.com
+	// 複製 idmsa.apple.com 的 Cookie 到 icloud.com
 	u1, _ := url.Parse("https://idmsa.apple.com")
 	u2, _ := url.Parse("https://icloud.com")
 	cookies := c.httpc.GetCookies(u1)
@@ -381,7 +381,7 @@ func (c *Client) extractSessionCookies() map[string]string {
 	return cookies
 }
 
-// updateAuthHeaders 更新认证请求所需的头部
+// updateAuthHeaders 更新認證請求所需的頭部
 func (c *Client) updateAuthHeaders(header http.Header, state *authState) http.Header {
 	if state.scnt != "" {
 		header.Set("scnt", state.scnt)
@@ -400,12 +400,12 @@ func (c *Client) updateAuthHeaders(header http.Header, state *authState) http.He
 	return header
 }
 
-// Validate 验证当前 Cookie 是否有效
+// Validate 驗證當前 Cookie 是否有效
 func (c *Client) Validate() (bool, error) {
 	if len(c.Cookies) == 0 {
-		return false, fmt.Errorf("无 Cookie")
+		return false, fmt.Errorf("無 Cookie")
 	}
-	// 简单实现：尝试调用 validate 端点
+	// 簡單實現：嘗試呼叫 validate 端點
 	err := c.ValidateSession()
 	if err != nil {
 		return false, err

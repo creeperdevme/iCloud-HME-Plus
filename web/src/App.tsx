@@ -10,7 +10,11 @@ import InboxPage from './pages/InboxPage'
 function ProtectedLayout() {
   const { status } = useAuth()
   if (status === 'checking') {
-    return <p className="empty-state" aria-busy="true">加载中…</p>
+    return (
+      <p className="empty-state" aria-busy="true">
+        載入中…
+      </p>
+    )
   }
   if (status === 'anonymous') {
     return <Navigate to="/login" replace />

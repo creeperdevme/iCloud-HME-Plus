@@ -9,7 +9,7 @@ interface ICloudLoginDialogProps {
   onSaved: () => void
 }
 
-/** iCloud 密码登录对话框:支持 OTP 两阶段 */
+/** 以 Apple ID 密碼登入 iCloud，取得可用的 Cookie；支援兩階段 OTP。 */
 export default function ICloudLoginDialog({
   accountId,
   open,
@@ -22,8 +22,24 @@ export default function ICloudLoginDialog({
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
+  function handleClose() {
+    setPassword('')
+    setOtp('')
+    setOtpRequired(false)
+    setError('')
+    onClose()
+  }
+
   async function handleSubmit() {
     if (submitting) return
+    if (!otpRequired && !password.trim()) {
+      setError('請輸入 Apple ID 密碼')
+      return
+    }
+    if (otpRequired && !otp.trim()) {
+      setError('請輸入驗證碼')
+      return
+    }
     setSubmitting(true)
     setError('')
     try {
@@ -42,7 +58,7 @@ export default function ICloudLoginDialog({
       if (err instanceof ApiError && err.code === 'OTP_REQUIRED') {
         setOtpRequired(true)
       } else {
-        setError(err instanceof ApiError ? err.message : '网络连接失败，请检查服务状态')
+        setError(err instanceof ApiError ? err.message : '網路連線失敗，請檢查服務狀態')
       }
     } finally {
       setSubmitting(false)
@@ -51,27 +67,26 @@ export default function ICloudLoginDialog({
 
   return (
     <Dialog
-      title="iCloud 登录"
+      title="iCloud 登入"
+      description="使用 Apple ID 密碼換取新的 Cookie，登入後會自動儲存。"
       open={open}
-      onClose={() => {
-        setPassword('')
-        setOtp('')
-        setOtpRequired(false)
-        setError('')
-        onClose()
-      }}
+      onClose={handleClose}
     >
       {error && (
-        <div className="alert-error" role="alert">
+        <div className="alert alert-error" role="alert">
           {error}
         </div>
       )}
+
       {otpRequired && (
-        <div className="alert-info">该账号启用了双重认证，请输入验证码。</div>
+        <div className="alert alert-info">
+          <span>此帳號啟用了雙重認證，請輸入傳送到你裝置的 6 位數驗證碼。</span>
+        </div>
       )}
+
       {!otpRequired && (
         <div className="form-field">
-          <label htmlFor="icloud-login-password">密码</label>
+          <label htmlFor="icloud-login-password">Apple ID 密碼</label>
           <input
             id="icloud-login-password"
             type="password"
@@ -81,9 +96,10 @@ export default function ICloudLoginDialog({
           />
         </div>
       )}
+
       {otpRequired && (
         <div className="form-field">
-          <label htmlFor="icloud-login-otp">验证码</label>
+          <label htmlFor="icloud-login-otp">驗證碼</label>
           <input
             id="icloud-login-otp"
             type="text"
@@ -92,13 +108,15 @@ export default function ICloudLoginDialog({
             value={otp}
             onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
             autoComplete="one-time-code"
+            placeholder="123456"
           />
         </div>
       )}
+
       <div className="form-actions">
-        <button onClick={onClose}>取消</button>
+        <button onClick={handleClose}>取消</button>
         <button className="primary" onClick={() => void handleSubmit()} disabled={submitting}>
-          {submitting ? '登录中…' : otpRequired ? '验证' : '登录'}
+          {submitting ? '登入中…' : otpRequired ? '驗證' : '登入'}
         </button>
       </div>
     </Dialog>

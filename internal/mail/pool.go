@@ -1,4 +1,4 @@
-// IMAP 连接池: 按 Apple ID 复用长连接, 避免每次读信都 TLS+Login。
+// IMAP 連線池: 按 Apple ID 複用長連線, 避免每次讀信都 TLS+Login。
 package mail
 
 import (
@@ -7,11 +7,11 @@ import (
 	"time"
 )
 
-// Pool 管理按账号复用的 IMAP 长连接。同一账号串行使用(go-imap 非并发安全)。
+// Pool 管理按帳號複用的 IMAP 長連線。同一帳號循序使用(go-imap 非並行安全)。
 type Pool struct {
 	mu    sync.Mutex
 	items map[string]*pooledConn
-	// idleClose 空闲超过该时间则下次使用前重建; 0 表示不主动关。
+	// idleClose 空閒超過該時間則下次使用前重建; 0 表示不主動關。
 	idleClose time.Duration
 }
 
@@ -23,7 +23,7 @@ type pooledConn struct {
 	lastUsed    time.Time
 }
 
-// NewPool 创建连接池。
+// NewPool 建立連線池。
 func NewPool() *Pool {
 	return &Pool{
 		items:     make(map[string]*pooledConn),
@@ -31,10 +31,10 @@ func NewPool() *Pool {
 	}
 }
 
-// Do 借出已连接的 Client 执行 fn; 用完不 Logout, 连接留在池中。
+// Do 借出已連線的 Client 執行 fn; 用完不 Logout, 連線留在池中。
 func (p *Pool) Do(appleID, appPassword string, fn func(*Client) error) error {
 	if appleID == "" || appPassword == "" {
-		return fmt.Errorf("IMAP 凭据为空")
+		return fmt.Errorf("IMAP 憑證為空")
 	}
 	pc := p.getOrCreate(appleID, appPassword)
 	pc.mu.Lock()
@@ -46,14 +46,14 @@ func (p *Pool) Do(appleID, appPassword string, fn func(*Client) error) error {
 	err := fn(pc.client)
 	pc.lastUsed = time.Now()
 	if err != nil && isLikelyConnErr(err) {
-		// 连接坏了, 丢掉, 下次重建
+		// 連線壞了, 丟掉, 下次重建
 		pc.client.forceClose()
 		pc.client = nil
 	}
 	return err
 }
 
-// Close 关闭池内全部连接。
+// Close 關閉池內全部連線。
 func (p *Pool) Close() {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -73,7 +73,7 @@ func (p *Pool) getOrCreate(appleID, appPassword string) *pooledConn {
 	defer p.mu.Unlock()
 	key := appleID
 	if pc, ok := p.items[key]; ok {
-		// 密码变更则换新
+		// 密碼變更則換新
 		if pc.appPassword != appPassword {
 			pc.mu.Lock()
 			if pc.client != nil {
@@ -92,7 +92,7 @@ func (p *Pool) getOrCreate(appleID, appPassword string) *pooledConn {
 
 func (pc *pooledConn) ensure(idleClose time.Duration) error {
 	if pc.client != nil {
-		// 空闲太久主动重建, 避免服务端静默断连
+		// 空閒太久主動重建, 避免服務端靜默斷連
 		if idleClose > 0 && !pc.lastUsed.IsZero() && time.Since(pc.lastUsed) > idleClose {
 			pc.client.forceClose()
 			pc.client = nil
@@ -119,11 +119,11 @@ func isLikelyConnErr(err error) bool {
 		return false
 	}
 	s := err.Error()
-	// 常见断连/IO 错误关键字
+	// 常見斷連/IO 錯誤關鍵字
 	for _, k := range []string{
 		"connection reset", "broken pipe", "EOF", "i/o timeout",
 		"use of closed", "not connected", "connection refused",
-		"IMAP 连接", "wsarecv", "wsasend",
+		"IMAP 連線", "wsarecv", "wsasend",
 	} {
 		if containsFold(s, k) {
 			return true
@@ -139,7 +139,7 @@ func containsFold(s, sub string) bool {
 }
 
 func indexFold(s, sub string) int {
-	// 小写 ASCII 子串查找, 够用
+	// 小寫 ASCII 子串查找, 夠用
 	sl := toLowerASCII(s)
 	subl := toLowerASCII(sub)
 	for i := 0; i+len(subl) <= len(sl); i++ {

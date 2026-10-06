@@ -9,7 +9,7 @@ interface CreateAliasDialogProps {
   onCreated: (email: string) => void
 }
 
-/** 创建别名对话框 */
+/** 建立 Hide My Email 別名。 */
 export default function CreateAliasDialog({
   accountId,
   open,
@@ -20,10 +20,16 @@ export default function CreateAliasDialog({
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
+  function handleClose() {
+    setLabel('')
+    setError('')
+    onClose()
+  }
+
   async function handleSubmit() {
     if (submitting) return
     if (!label.trim()) {
-      setError('请输入标签')
+      setError('請輸入標籤')
       return
     }
     setSubmitting(true)
@@ -36,7 +42,7 @@ export default function CreateAliasDialog({
       setLabel('')
       onCreated(data.email)
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : '网络连接失败，请检查服务状态')
+      setError(err instanceof ApiError ? err.message : '網路連線失敗，請檢查服務狀態')
     } finally {
       setSubmitting(false)
     }
@@ -44,34 +50,31 @@ export default function CreateAliasDialog({
 
   return (
     <Dialog
-      title="创建别名"
+      title="建立別名"
+      description="建立後會產生一個新的隱藏信箱，可用來註冊網站。"
       open={open}
-      onClose={() => {
-        setLabel('')
-        setError('')
-        onClose()
-      }}
+      onClose={handleClose}
     >
       {error && (
-        <div className="alert-error" role="alert">
+        <div className="alert alert-error" role="alert">
           {error}
         </div>
       )}
       <div className="form-field">
-        <label htmlFor="alias-label">标签</label>
+        <label htmlFor="alias-label">標籤</label>
         <input
           id="alias-label"
           value={label}
           onChange={(e) => setLabel(e.target.value.slice(0, 200))}
           maxLength={200}
-          placeholder="例如：购物、订阅"
+          placeholder="例如：購物、訂閱服務"
         />
-        <p className="hint">标签最长 200 字符；创建后会自动生成新的隐私邮箱。</p>
+        <p className="hint">標籤最長 200 字元，方便日後辨識用途。</p>
       </div>
       <div className="form-actions">
-        <button onClick={onClose}>取消</button>
+        <button onClick={handleClose}>取消</button>
         <button className="primary" onClick={() => void handleSubmit()} disabled={submitting}>
-          {submitting ? '创建中…' : '创建'}
+          {submitting ? '建立中…' : '建立別名'}
         </button>
       </div>
     </Dialog>

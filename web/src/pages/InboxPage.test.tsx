@@ -1,5 +1,5 @@
 import { http, HttpResponse } from 'msw'
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { beforeEach, describe, expect, it } from 'vitest'
@@ -7,12 +7,12 @@ import InboxPage from './InboxPage'
 import { server } from '../test/server'
 import { setCSRFToken } from '../api/client'
 import { ToastProvider } from '../components/ToastProvider'
-import type { AccountSummary, InboxResult } from '../api/types'
+import type { AccountSummary, Alias, InboxResult } from '../api/types'
 
 const accounts: AccountSummary[] = [
   {
     id: 'acc_1',
-    name: '主号',
+    name: '主號',
     real_email: 'a@example.com',
     icloud_email: 'a@icloud.com',
     host: 'icloud.com',
@@ -27,6 +27,16 @@ const accounts: AccountSummary[] = [
   },
 ]
 
+const aliases: Alias[] = [
+  {
+    email: 'alpha@icloud.com',
+    anonymousId: 'anon_alpha',
+    label: 'Alpha',
+    active: true,
+    createdAt: '2026-07-01T00:00:00+08:00',
+  },
+]
+
 const inboxResult: InboxResult = {
   account_id: 'acc_1',
   alias: 'alpha@icloud.com',
@@ -37,12 +47,23 @@ const inboxResult: InboxResult = {
       id: '1',
       from: 'sender@example.com',
       to: 'alpha@icloud.com',
-      subject: '主题一',
+      subject: '主題一',
       date: '2026-08-04T10:00:00+08:00',
-      preview: '预览内容',
+      preview: '預覽內容',
     },
   ],
 }
+
+const accountsHandler = () =>
+  http.get('/api/accounts', () => HttpResponse.json({ success: true, data: accounts }))
+
+const aliasesHandler = () =>
+  http.get('/api/aliases', () =>
+    HttpResponse.json({
+      success: true,
+      data: { account_id: 'acc_1', count: aliases.length, aliases },
+    }),
+  )
 
 function renderPage(initialPath = '/inbox') {
   return render(
@@ -67,71 +88,65 @@ describe('InboxPage', () => {
     server.resetHandlers()
   })
 
-  it('账号必选;alias 可空;limit/days 生效;query 经 URLSearchParams', async () => {
+  it('帳號必選;別名可空;limit/days 生效;query 經 URLSearchParams', async () => {
     let lastUrl = ''
     server.use(
-      http.get('/api/accounts', () => HttpResponse.json({ success: true, data: accounts })),
+      accountsHandler(),
+      aliasesHandler(),
       http.get('/api/inbox', ({ request }) => {
         lastUrl = request.url
         return HttpResponse.json({ success: true, data: inboxResult })
       }),
     )
     renderPage()
-    await screen.findByText('主题一')
-    // 确认 query 参数
+    await screen.findByText('主題一')
+
+    // 初次載入的 query 參數
     const url = new URL(lastUrl)
     expect(url.searchParams.get('account_id')).toBe('acc_1')
     expect(url.searchParams.get('limit')).toBe('20')
     expect(url.searchParams.get('days')).toBe('7')
-    // 修改 limit/days 再查询
+
+    // 修改筆數上限與最近天數後重新查詢
     const user = userEvent.setup()
-    await user.selectOptions(screen.getByLabelText(/每页/), '100')
-    await user.selectOptions(screen.getByLabelText(/时间范围/), '30')
-    await user.click(screen.getByRole('button', { name: /查询/ }))
+    fireEvent.change(screen.getByLabelText('筆數上限'), { target: { value: '100' } })
+    fireEvent.change(screen.getByLabelText('最近天數'), { target: { value: '30' } })
+    await user.click(screen.getByRole('button', { name: '套用條件' }))
+
     await waitFor(() => {
-      const u = new URL(lastUrl)
-      expect(u.searchParams.get('limit')).toBe('100')
-      expect(u.searchParams.get('days')).toBe('30')
+      const updated = new URL(lastUrl)
+      expect(updated.searchParams.get('limit')).toBe('100')
+      expect(updated.searchParams.get('days')).toBe('30')
     })
   })
 
-  it('从 URL 的 alias 参数初始化筛选,支持别名页直达收件箱', async () => {
+  it('從 URL 的 alias 參數初始化篩選,支援別名頁直達收件匣', async () => {
     const inboxUrls: string[] = []
     server.use(
-      http.get('/api/accounts', () => HttpResponse.json({ success: true, data: accounts })),
-      http.get('/api/aliases', () =>
-        HttpResponse.json({
-          success: true,
-          data: {
-            account_id: 'acc_1',
-            count: 1,
-            aliases: [
-              {
-                email: 'alpha@icloud.com',
-                anonymousId: 'anon_alpha',
-                label: 'Alpha',
-                active: true,
-              },
-            ],
-          },
-        }),
-      ),
+      accountsHandler(),
+      aliasesHandler(),
       http.get('/api/inbox', ({ request }) => {
         inboxUrls.push(request.url)
         return HttpResponse.json({ success: true, data: inboxResult })
       }),
     )
     renderPage('/inbox?account_id=acc_1&alias=alpha%40icloud.com')
-    await screen.findByText('主题一')
+    await screen.findByText('主題一')
+
     await waitFor(() => {
-      expect(inboxUrls.some((url) => new URL(url).searchParams.get('alias') === 'alpha@icloud.com')).toBe(true)
+      expect(
+        inboxUrls.some(
+          (url) => new URL(url).searchParams.get('alias') === 'alpha@icloud.com',
+        ),
+      ).toBe(true)
     })
-    expect(screen.getByLabelText(/别名/)).toHaveValue('alpha@icloud.com')
+    expect(screen.getByLabelText('別名')).toHaveValue('alpha@icloud.com')
   })
 
-  it('展示 method=imap 或 web_api', async () => {
+  it('顯示目前使用的讀取方式(method=imap 或 web_api)', async () => {
     server.use(
-      http.get('/api/accounts', () => HttpResponse.json({ success: true, data: accounts })),
+      accountsHandler(),
+      aliasesHandler(),
       http.get('/api/inbox', () =>
         HttpResponse.json({
           success: true,
@@ -140,13 +155,28 @@ describe('InboxPage', () => {
       ),
     )
     renderPage()
-    await screen.findByText('主题一')
-    expect(screen.getByText(/Web API/)).toBeInTheDocument()
+    await screen.findByText('主題一')
+    expect(screen.getByText(/目前透過 Web API 讀取/)).toBeInTheDocument()
   })
 
-  it('空列表、网络错误、401 状态', async () => {
+  it('載入中顯示骨架且查詢按鈕停用', () => {
     server.use(
-      http.get('/api/accounts', () => HttpResponse.json({ success: true, data: accounts })),
+      accountsHandler(),
+      aliasesHandler(),
+      http.get('/api/inbox', () => new Promise<Response>(() => {})),
+    )
+    renderPage()
+
+    // 首次渲染即為載入中,因此同步斷言(不需等待)
+    expect(screen.getByText('載入中')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '套用條件' })).toBeDisabled()
+    expect(screen.queryByText(/這段期間沒有收到郵件/)).toBeNull()
+  })
+
+  it('空列表顯示空狀態且按鈕可用', async () => {
+    server.use(
+      accountsHandler(),
+      aliasesHandler(),
       http.get('/api/inbox', () =>
         HttpResponse.json({
           success: true,
@@ -155,10 +185,54 @@ describe('InboxPage', () => {
       ),
     )
     renderPage()
-    expect(await screen.findByText(/暂无邮件/)).toBeInTheDocument()
+
+    expect(await screen.findByText(/這段期間沒有收到郵件/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '套用條件' })).toBeEnabled()
   })
 
-  it('恶意 HTML 只作为文本显示,不产生 img 节点', async () => {
+  it('查詢失敗顯示錯誤訊息並可重試', async () => {
+    let calls = 0
+    server.use(
+      accountsHandler(),
+      aliasesHandler(),
+      http.get('/api/inbox', () => {
+        calls++
+        if (calls === 1) {
+          return HttpResponse.json(
+            { success: false, code: 'UPSTREAM_FAILURE', message: '讀取收件匣失敗' },
+            { status: 502 },
+          )
+        }
+        return HttpResponse.json({ success: true, data: inboxResult })
+      }),
+    )
+    renderPage()
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('讀取收件匣失敗')
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: '重試' }))
+    expect(await screen.findByText('主題一')).toBeInTheDocument()
+  })
+
+  it('工作階段失效(401)時顯示伺服器訊息且不顯示郵件', async () => {
+    server.use(
+      accountsHandler(),
+      aliasesHandler(),
+      http.get('/api/inbox', () =>
+        HttpResponse.json(
+          { success: false, code: 'AUTH_REQUIRED', message: '請先登入' },
+          { status: 401 },
+        ),
+      ),
+    )
+    renderPage()
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('請先登入')
+    expect(screen.queryByText('主題一')).toBeNull()
+    expect(screen.queryByRole('table')).toBeNull()
+  })
+
+  it('惡意 HTML 只作為文字顯示,不產生 img/script 節點', async () => {
     const evil = {
       ...inboxResult,
       messages: [
@@ -168,12 +242,13 @@ describe('InboxPage', () => {
           to: 'alpha@icloud.com',
           subject: '<img src=x onerror=alert(1)>',
           date: '2026-08-04T10:00:00+08:00',
-          preview: '<script>alert(2)</script>预览',
+          preview: '<script>alert(2)</script>預覽',
         },
       ],
     }
     server.use(
-      http.get('/api/accounts', () => HttpResponse.json({ success: true, data: accounts })),
+      accountsHandler(),
+      aliasesHandler(),
       http.get('/api/inbox', () => HttpResponse.json({ success: true, data: evil })),
     )
     renderPage()
@@ -182,15 +257,16 @@ describe('InboxPage', () => {
     expect(document.querySelector('script')).toBeNull()
   })
 
-  it('快速切换筛选:第一请求晚返回不覆盖第二请求', async () => {
+  it('快速切換篩選:第一次請求晚返回不覆蓋第二次請求', async () => {
     let release: (() => void) | undefined
     let calls = 0
     server.use(
-      http.get('/api/accounts', () => HttpResponse.json({ success: true, data: accounts })),
+      accountsHandler(),
+      aliasesHandler(),
       http.get('/api/inbox', () => {
         calls++
         if (calls === 1) {
-          // 第一次请求挂起,稍后返回旧数据
+          // 第一次請求掛起,稍後才回傳舊資料
           return new Promise<Response>((resolve) => {
             release = () =>
               resolve(
@@ -198,7 +274,7 @@ describe('InboxPage', () => {
                   success: true,
                   data: {
                     ...inboxResult,
-                    messages: [{ ...inboxResult.messages[0], subject: '旧主题' }],
+                    messages: [{ ...inboxResult.messages[0], subject: '舊主題' }],
                   },
                 }),
               )
@@ -214,9 +290,9 @@ describe('InboxPage', () => {
                 id: '9',
                 from: 's2@example.com',
                 to: 'alpha@icloud.com',
-                subject: '第二请求主题',
+                subject: '第二請求主題',
                 date: '2026-08-04T11:00:00+08:00',
-                preview: '第二请求',
+                preview: '第二請求',
               },
             ],
           },
@@ -224,23 +300,24 @@ describe('InboxPage', () => {
       }),
     )
     renderPage()
-    await screen.findByText(/加载中/)
-    // 触发第二次查询(首次挂起中)
-    const user = userEvent.setup()
-    await user.selectOptions(screen.getByLabelText(/每页/), '100')
-    await user.click(screen.getByRole('button', { name: /查询/ }))
-    await screen.findByText('第二请求主题')
-    // 第一次请求此时才返回
+    await screen.findByText('載入中')
+
+    // 等第一次請求真的送出後再切換條件(第二次請求會中止第一次)
+    await waitFor(() => expect(calls).toBe(1))
+    fireEvent.change(screen.getByLabelText('筆數上限'), { target: { value: '100' } })
+    expect(await screen.findByText('第二請求主題')).toBeInTheDocument()
+
+    // 第一次請求此時才返回,舊資料不得覆蓋新資料
     release?.()
-    // 旧数据不得覆盖新数据
-    await new Promise((r) => setTimeout(r, 100))
-    expect(screen.getByText('第二请求主题')).toBeInTheDocument()
-    expect(screen.queryByText('旧主题')).toBeNull()
+    await new Promise((resolve) => setTimeout(resolve, 100))
+    expect(screen.getByText('第二請求主題')).toBeInTheDocument()
+    expect(screen.queryByText('舊主題')).toBeNull()
   })
 
-  it('空 subject 显示(无主题)', async () => {
+  it('空主旨顯示(無主旨)', async () => {
     server.use(
-      http.get('/api/accounts', () => HttpResponse.json({ success: true, data: accounts })),
+      accountsHandler(),
+      aliasesHandler(),
       http.get('/api/inbox', () =>
         HttpResponse.json({
           success: true,
@@ -252,23 +329,41 @@ describe('InboxPage', () => {
       ),
     )
     renderPage()
-    expect(await screen.findByText(/（无主题）/)).toBeInTheDocument()
+    expect(await screen.findByText('(無主旨)')).toBeInTheDocument()
   })
 
-  it('空摘要显示占位符', async () => {
+  it('缺少寄件人/收件人顯示破折號佔位', async () => {
     server.use(
-      http.get('/api/accounts', () => HttpResponse.json({ success: true, data: accounts })),
+      accountsHandler(),
+      aliasesHandler(),
       http.get('/api/inbox', () =>
         HttpResponse.json({
           success: true,
           data: {
             ...inboxResult,
-            messages: [{ ...inboxResult.messages[0], preview: '' }],
+            messages: [{ ...inboxResult.messages[0], from: '', to: '', preview: '' }],
           },
         }),
       ),
     )
     renderPage()
-    expect(await screen.findByText('—')).toBeInTheDocument()
+    await screen.findByText('主題一')
+
+    // 寄件人與收件人各自的佔位符
+    expect(screen.getAllByText('—')).toHaveLength(2)
+    // 新版不為空摘要產生節點
+    expect(document.querySelector('.cell-secondary')).toBeNull()
+    expect(within(screen.getByRole('table')).queryByText('預覽內容')).toBeNull()
+  })
+
+  it('顯示郵件總數', async () => {
+    server.use(
+      accountsHandler(),
+      aliasesHandler(),
+      http.get('/api/inbox', () => HttpResponse.json({ success: true, data: inboxResult })),
+    )
+    renderPage()
+    await screen.findByText('主題一')
+    expect(screen.getByText(/共 1 封郵件/)).toBeInTheDocument()
   })
 })

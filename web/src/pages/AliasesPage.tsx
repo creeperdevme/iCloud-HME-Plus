@@ -8,6 +8,7 @@ import ConfirmDialog from '../components/ConfirmDialog'
 import { useToast } from '../components/ToastProvider'
 import { copyText } from '../utils/clipboard'
 import {
+  IconAliases,
   IconCheck,
   IconChevronDown,
   IconChevronUp,
@@ -19,12 +20,13 @@ import {
 } from '../components/icons'
 
 type SortDirection = 'asc' | 'desc'
+type Filter = 'all' | 'active' | 'inactive'
 
 function parseAliasDate(raw?: string): Date | null {
   const value = raw?.trim()
   if (!value) return null
 
-  // iCloud 可能返回 ISO 字符串，也可能返回秒、毫秒或微秒时间戳。
+  // iCloud 可能回傳 ISO 字串，也可能是秒、毫秒或微秒時間戳。
   if (/^[+-]?\d+(?:\.\d+)?$/.test(value)) {
     const numeric = Number(value)
     if (Number.isFinite(numeric)) {
@@ -65,7 +67,7 @@ export default function AliasesPage() {
   const [error, setError] = useState('')
   const [retryKey, setRetryKey] = useState(0)
   const [search, setSearch] = useState('')
-  const [filter, setFilter] = useState<'all' | 'active' | 'inactive'>('all')
+  const [filter, setFilter] = useState<Filter>('all')
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc')
   const [createOpen, setCreateOpen] = useState(false)
   const [confirm, setConfirm] = useState<{
@@ -78,7 +80,7 @@ export default function AliasesPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const { show, showCopyable } = useToast()
 
-  // 加载账号列表
+  // 載入帳號列表
   useEffect(() => {
     let cancelled = false
     request<AccountSummary[]>('/api/accounts')
@@ -87,7 +89,7 @@ export default function AliasesPage() {
         setAccounts(data)
         const queryId = searchParams.get('account_id')
         const valid = data.find((a) => a.id === queryId)
-        const target = valid ? valid.id : data[0]?.id ?? ''
+        const target = valid ? valid.id : (data[0]?.id ?? '')
         setAccountId(target)
         if (target && (!queryId || !valid)) {
           setSearchParams({ account_id: target }, { replace: true })
@@ -95,7 +97,7 @@ export default function AliasesPage() {
       })
       .catch((err) => {
         if (cancelled) return
-        setError(err instanceof ApiError ? err.message : '网络连接失败，请检查服务状态')
+        setError(err instanceof ApiError ? err.message : '網路連線失敗，請檢查服務狀態')
       })
       .finally(() => {
         if (!cancelled) setLoading(false)
@@ -106,7 +108,7 @@ export default function AliasesPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // 加载别名列表
+  // 載入別名列表
   useEffect(() => {
     if (!accountId) return
     let cancelled = false
@@ -120,7 +122,7 @@ export default function AliasesPage() {
       })
       .catch((err) => {
         if (cancelled) return
-        setError(err instanceof ApiError ? err.message : '网络连接失败，请检查服务状态')
+        setError(err instanceof ApiError ? err.message : '網路連線失敗，請檢查服務狀態')
       })
       .finally(() => {
         if (!cancelled) setLoading(false)
@@ -138,15 +140,13 @@ export default function AliasesPage() {
         if (filter === 'active' && !alias.active) return false
         if (filter === 'inactive' && alias.active) return false
         if (!q) return true
-        return (
-          alias.email.toLowerCase().includes(q) || alias.label.toLowerCase().includes(q)
-        )
+        return alias.email.toLowerCase().includes(q) || alias.label.toLowerCase().includes(q)
       })
       .sort((left, right) => {
         const leftTime = dateTimestamp(left.alias.createdAt)
         const rightTime = dateTimestamp(right.alias.createdAt)
 
-        // 没有有效时间的记录始终放在末尾，避免倒序时跳到列表顶部。
+        // 沒有有效時間的記錄一律排到最後，避免倒序時跳到最前面。
         if (leftTime === null || rightTime === null) {
           if (leftTime === rightTime) return left.index - right.index
           return leftTime === null ? 1 : -1
@@ -157,6 +157,8 @@ export default function AliasesPage() {
       .map(({ alias }) => alias)
   }, [aliases, search, filter, sortDirection])
 
+  const activeCount = aliases.filter((a) => a.active).length
+
   function handleRetry() {
     setLoading(true)
     setRetryKey((k) => k + 1)
@@ -165,9 +167,9 @@ export default function AliasesPage() {
   const copyEmail = useCallback(
     async (email: string) => {
       if (await copyText(email)) {
-        show('邮箱已复制')
+        show('信箱已複製')
       } else {
-        showCopyable(email, '复制失败，请手动复制')
+        showCopyable(email, '複製失敗，請手動複製')
       }
     },
     [show, showCopyable],
@@ -180,24 +182,22 @@ export default function AliasesPage() {
     const { alias } = confirm
     try {
       if (type === 'delete') {
-        await request(
-          `/api/aliases/${encodeURIComponent(alias.anonymousId)}`,
-          { method: 'DELETE', body: JSON.stringify({ account_id: accountId }) },
-        )
-        show('别名已删除')
+        await request(`/api/aliases/${encodeURIComponent(alias.anonymousId)}`, {
+          method: 'DELETE',
+          body: JSON.stringify({ account_id: accountId }),
+        })
+        show('別名已刪除')
       } else {
         await request(
           `/api/aliases/${encodeURIComponent(alias.anonymousId)}/${type === 'deactivate' ? 'deactivate' : 'reactivate'}`,
           { method: 'POST', body: JSON.stringify({ account_id: accountId }) },
         )
-        show(type === 'deactivate' ? '别名已停用' : '别名已激活')
+        show(type === 'deactivate' ? '別名已停用' : '別名已啟用')
       }
       setConfirm(null)
       setRetryKey((k) => k + 1)
     } catch (err) {
-      setActionError(
-        err instanceof ApiError ? err.message : '网络连接失败，请检查服务状态',
-      )
+      setActionError(err instanceof ApiError ? err.message : '網路連線失敗，請檢查服務狀態')
     } finally {
       setBusy(false)
     }
@@ -210,28 +210,48 @@ export default function AliasesPage() {
   }
 
   if (accounts.length === 0 && !loading && !error) {
-    return <p className="empty-state">暂无账号，请先到「账号」页面添加账号</p>
+    return (
+      <div className="page">
+        <header className="page-head">
+          <div>
+            <h2 className="page-title">別名管理</h2>
+            <p className="page-sub">建立、停用、啟用或刪除 Hide My Email 別名</p>
+          </div>
+        </header>
+        <div className="card">
+          <p className="empty-state">
+            還沒有任何帳號，請先到 <Link to="/accounts">帳號管理</Link> 新增。
+          </p>
+        </div>
+      </div>
+    )
   }
 
   const confirmTitle =
     confirm?.type === 'delete'
-      ? '删除别名'
+      ? '刪除別名'
       : confirm?.type === 'deactivate'
-        ? '停用别名'
-        : '激活别名'
+        ? '停用別名'
+        : '啟用別名'
 
   const confirmLabel =
-    confirm?.type === 'delete' ? '确认删除' : confirm?.type === 'deactivate' ? '确认停用' : '确认激活'
+    confirm?.type === 'delete'
+      ? '確認刪除'
+      : confirm?.type === 'deactivate'
+        ? '確認停用'
+        : '確認啟用'
 
   return (
-    <section>
-      <div className="page-header">
-        <div className="page-title">
-          <h2>别名管理</h2>
-          <p>创建、停用、激活或删除 Hide My Email 别名</p>
+    <div className="page">
+      <header className="page-head">
+        <div>
+          <h2 className="page-title">別名管理</h2>
+          <p className="page-sub">建立、停用、啟用或刪除 Hide My Email 別名</p>
         </div>
-        <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
-          <label htmlFor="alias-account">账号</label>
+        <div className="page-actions">
+          <label htmlFor="alias-account" className="visually-hidden">
+            選擇帳號
+          </label>
           <select
             id="alias-account"
             value={accountId}
@@ -239,88 +259,122 @@ export default function AliasesPage() {
               setAccountId(e.target.value)
               setSearchParams({ account_id: e.target.value }, { replace: true })
             }}
-            style={{ width: 'auto' }}
+            style={{ width: 'auto', minWidth: 180 }}
           >
             {accounts.map((a) => (
               <option key={a.id} value={a.id}>
-                {a.name}
+                {a.name}（{a.icloud_email || a.id}）
               </option>
             ))}
           </select>
           <button className="primary" onClick={() => setCreateOpen(true)} disabled={!accountId}>
             <IconPlus size={16} />
-            创建别名
+            建立別名
           </button>
+        </div>
+      </header>
+
+      <div className="stat-grid">
+        <div className="stat">
+          <span className="stat-icon">
+            <IconAliases size={20} />
+          </span>
+          <div className="stat-body">
+            <div className="stat-value">{aliases.length}</div>
+            <div className="stat-label">別名總數</div>
+          </div>
+        </div>
+        <div className="stat">
+          <span className="stat-icon is-success">
+            <IconCheck size={20} />
+          </span>
+          <div className="stat-body">
+            <div className="stat-value">{activeCount}</div>
+            <div className="stat-label">已啟用</div>
+          </div>
+        </div>
+        <div className="stat">
+          <span className="stat-icon is-warning">
+            <IconClock size={20} />
+          </span>
+          <div className="stat-body">
+            <div className="stat-value">{aliases.length - activeCount}</div>
+            <div className="stat-label">已停用</div>
+          </div>
         </div>
       </div>
 
-      <div style={{ display: 'flex', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
-        <div style={{ flex: 1, minWidth: 200 }}>
-          <label htmlFor="alias-search">搜索</label>
-          <div style={{ position: 'relative' }}>
+      <div className="card">
+        <div className="toolbar">
+          <div className="search-wrap">
+            <label htmlFor="alias-search" className="visually-hidden">
+              搜尋別名
+            </label>
             <input
               id="alias-search"
               type="search"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="按邮箱或标签搜索"
-              style={{ paddingRight: 36 }}
+              placeholder="以信箱或標籤搜尋"
             />
-            <span
-              aria-hidden="true"
-              style={{
-                position: 'absolute',
-                right: 10,
-                top: '50%',
-                transform: 'translateY(-50%)',
-                color: 'var(--color-text-tertiary)',
-                display: 'flex',
-                pointerEvents: 'none',
-              }}
-            >
+            <span className="search-icon" aria-hidden="true">
               <IconSearch size={16} />
             </span>
           </div>
-        </div>
-        <div>
-          <label htmlFor="alias-filter">状态</label>
-          <select
-            id="alias-filter"
-            value={filter}
-            onChange={(e) => setFilter(e.target.value as 'all' | 'active' | 'inactive')}
-            style={{ width: 'auto' }}
-          >
-            <option value="all">全部</option>
-            <option value="active">已启用</option>
-            <option value="inactive">已停用</option>
-          </select>
+          <div className="form-field" style={{ flex: '0 0 160px' }}>
+            <label htmlFor="alias-filter">狀態</label>
+            <select
+              id="alias-filter"
+              value={filter}
+              onChange={(e) => setFilter(e.target.value as Filter)}
+            >
+              <option value="all">全部</option>
+              <option value="active">已啟用</option>
+              <option value="inactive">已停用</option>
+            </select>
+          </div>
+          <div className="toolbar-action">
+            <button onClick={handleRetry}>重新整理</button>
+          </div>
         </div>
       </div>
+
+      {actionError && (
+        <div className="alert alert-error" role="alert">
+          <span>{actionError}</span>
+        </div>
+      )}
 
       <AsyncState
         loading={loading}
         error={error}
         empty={filtered.length === 0}
-        emptyText={aliases.length === 0 ? '暂无别名' : '没有匹配的别名'}
+        emptyText={aliases.length === 0 ? '這個帳號還沒有任何別名。' : '沒有符合條件的別名。'}
         onRetry={handleRetry}
       >
         <div className="table-wrap">
           <table>
             <thead>
               <tr>
-                <th>邮箱</th>
-                <th>标签</th>
-                <th>状态</th>
+                <th>信箱</th>
+                <th>標籤</th>
+                <th>狀態</th>
                 <th aria-sort={sortDirection === 'asc' ? 'ascending' : 'descending'}>
                   <button
                     type="button"
                     className="table-sort-button"
-                    onClick={() => setSortDirection((direction) => (direction === 'asc' ? 'desc' : 'asc'))}
-                    aria-label={`创建时间排序：当前${sortDirection === 'asc' ? '正序' : '倒序'}，点击切换为${sortDirection === 'asc' ? '倒序' : '正序'}`}
-                    title="点击切换创建时间排序"
+                    onClick={() =>
+                      setSortDirection((direction) => (direction === 'asc' ? 'desc' : 'asc'))
+                    }
+                    aria-label={`建立時間排序：目前${sortDirection === 'asc' ? '正序' : '倒序'}，點擊切換為${sortDirection === 'asc' ? '倒序' : '正序'}`}
+                    title="點擊切換建立時間排序"
                   >
-                    <span>创建时间</span>
-                    {sortDirection === 'asc' ? <IconChevronUp size={14} /> : <IconChevronDown size={14} />}
+                    <span>建立時間</span>
+                    {sortDirection === 'asc' ? (
+                      <IconChevronUp size={14} />
+                    ) : (
+                      <IconChevronDown size={14} />
+                    )}
                   </button>
                 </th>
                 <th>操作</th>
@@ -332,9 +386,9 @@ export default function AliasesPage() {
                   <td>
                     <button
                       type="button"
-                      className="link-like"
+                      className="link-button"
                       onClick={() => void copyEmail(alias.email)}
-                      title="复制邮箱"
+                      title="點擊複製信箱"
                     >
                       {alias.email}
                     </button>
@@ -343,7 +397,7 @@ export default function AliasesPage() {
                   <td>
                     <span className={alias.active ? 'badge badge-active' : 'badge badge-neutral'}>
                       {alias.active ? <IconCheck size={12} /> : <IconClock size={12} />}
-                      {alias.active ? '已启用' : '已停用'}
+                      {alias.active ? '已啟用' : '已停用'}
                     </span>
                   </td>
                   <td>{formatDate(alias.createdAt)}</td>
@@ -351,6 +405,7 @@ export default function AliasesPage() {
                     <div className="row-actions">
                       {alias.active ? (
                         <button
+                          className="small"
                           disabled={busy}
                           onClick={() => setConfirm({ type: 'deactivate', alias })}
                         >
@@ -358,27 +413,30 @@ export default function AliasesPage() {
                         </button>
                       ) : (
                         <button
+                          className="small"
                           disabled={busy}
                           onClick={() => setConfirm({ type: 'reactivate', alias })}
                         >
-                          激活
+                          啟用
                         </button>
                       )}
+                      <Link
+                        className="btn small"
+                        to={`/inbox?account_id=${encodeURIComponent(accountId)}&alias=${encodeURIComponent(alias.email)}`}
+                        title="查看此別名的收件匣"
+                      >
+                        <IconInbox size={13} />
+                        收件匣
+                      </Link>
                       <button
-                        className="danger"
+                        className="icon-button danger"
+                        aria-label={`刪除別名 ${alias.email}`}
+                        title="刪除別名"
                         disabled={busy}
                         onClick={() => setConfirm({ type: 'delete', alias })}
                       >
                         <IconTrash size={14} />
-                        删除
                       </button>
-                      <Link
-                        to={`/inbox?account_id=${encodeURIComponent(accountId)}&alias=${encodeURIComponent(alias.email)}`}
-                        title="查看此别名的收件箱"
-                      >
-                        <IconInbox size={14} />
-                        收件箱
-                      </Link>
                     </div>
                   </td>
                 </tr>
@@ -400,31 +458,20 @@ export default function AliasesPage() {
           title={confirmTitle}
           message={
             confirm.type === 'delete'
-              ? `将删除别名 ${confirm.alias.email}。此操作不可恢复，且不会影响 Apple 账号本身。`
+              ? `將刪除別名 ${confirm.alias.email}。此操作無法復原，也不會影響 Apple 帳號本身。`
               : confirm.type === 'deactivate'
-                ? `将停用别名 ${confirm.alias.email}，之后该邮箱将不再接收邮件。`
-                : `将重新激活别名 ${confirm.alias.email}。`
+                ? `將停用別名 ${confirm.alias.email}，之後該信箱將不再收信。`
+                : `將重新啟用別名 ${confirm.alias.email}。`
           }
           confirmLabel={confirmLabel}
-          requireText={
-            confirm.type === 'delete' ? confirm.alias.email : undefined
-          }
-          requireLabel={
-            confirm.type === 'delete' ? '输入完整邮箱' : undefined
-          }
+          requireText={confirm.type === 'delete' ? confirm.alias.email : undefined}
+          requireLabel={confirm.type === 'delete' ? '輸入完整信箱以確認' : undefined}
           open
           busy={busy}
           onClose={() => setConfirm(null)}
           onConfirm={() => void runAction(confirm.type)}
         />
       )}
-
-      {actionError && (
-        <div className="alert-error" role="alert" style={{ marginTop: 16 }}>
-          {actionError}
-        </div>
-      )}
-    </section>
+    </div>
   )
 }
-

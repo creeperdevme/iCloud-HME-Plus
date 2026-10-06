@@ -13,14 +13,14 @@ import (
 	"icloud-hme/internal/account"
 )
 
-// writeSecretAccounts 把含秘密的账号写入测试数据目录。
+// writeSecretAccounts 把含秘密的帳號寫入測試資料目錄。
 func writeSecretAccounts(t *testing.T, dir string) {
 	t.Helper()
 	data := `{
   "accounts": {
     "acc_secret": {
       "id": "acc_secret",
-      "name": "秘密账号",
+      "name": "秘密帳號",
       "real_email": "owner@example.com",
       "icloud_email": "owner@icloud.com",
       "cookies": {"X-APPLE-WEBAUTH-USER": "cookie-secret", "dsid": "dsid-secret"},
@@ -41,7 +41,7 @@ func writeSecretAccounts(t *testing.T, dir string) {
 	}
 }
 
-// TestAccountResponseNoSecrets 验证账号列表响应不包含任何秘密。
+// TestAccountResponseNoSecrets 驗證帳號列表回應不包含任何秘密。
 func TestAccountResponseNoSecrets(t *testing.T) {
 	dir := t.TempDir()
 	writeSecretAccounts(t, dir)
@@ -64,14 +64,14 @@ func TestAccountResponseNoSecrets(t *testing.T) {
 		t.Fatalf("期望 200,得到 %d: %s", status, body)
 	}
 
-	// 字节级断言:不含秘密子串
+	// 位元組級斷言:不含秘密子串
 	for _, secret := range []string{"cookie-secret", "app-secret", "proxy-secret", "dsid-secret"} {
 		if strings.Contains(body, secret) {
-			t.Fatalf("响应泄露秘密 %q: %s", secret, body)
+			t.Fatalf("回應洩露秘密 %q: %s", secret, body)
 		}
 	}
 
-	// 精确键断言:不存在 cookies / app_password / proxy 键
+	// 精確鍵斷言:不存在 cookies / app_password / proxy 鍵
 	var out struct {
 		Data []map[string]any `json:"data"`
 	}
@@ -79,31 +79,31 @@ func TestAccountResponseNoSecrets(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(out.Data) != 1 {
-		t.Fatalf("期望 1 个账号,得到 %d", len(out.Data))
+		t.Fatalf("期望 1 個帳號,得到 %d", len(out.Data))
 	}
 	acc := out.Data[0]
 	for _, forbidden := range []string{"cookies", "app_password", "proxy"} {
 		if _, exists := acc[forbidden]; exists {
-			t.Fatalf("响应包含禁止键 %q", forbidden)
+			t.Fatalf("回應包含禁止鍵 %q", forbidden)
 		}
 	}
-	// 合法键存在
+	// 合法鍵存在
 	for _, required := range []string{"has_cookies", "has_app_password", "has_proxy", "id", "name"} {
 		if _, exists := acc[required]; !exists {
-			t.Fatalf("响应缺少键 %q", required)
+			t.Fatalf("回應缺少鍵 %q", required)
 		}
 	}
 	if acc["has_cookies"] != true || acc["has_app_password"] != true || acc["has_proxy"] != true {
-		t.Fatalf("凭据状态错误: %v", acc)
+		t.Fatalf("憑證狀態錯誤: %v", acc)
 	}
 	_ = csrf
 }
 
-// TestAccountLoginResponseNoSecrets 验证 iCloud 登录成功响应只含 Summary 字段。
+// TestAccountLoginResponseNoSecrets 驗證 iCloud 登入成功回應只含 Summary 欄位。
 func TestAccountLoginResponseNoSecrets(t *testing.T) {
 	f := &fakeBackend{
 		accounts: []account.Summary{{
-			ID: "acc_secret", Name: "秘密账号", Status: "active",
+			ID: "acc_secret", Name: "秘密帳號", Status: "active",
 			HasCookies: true, HasAppPassword: true, HasProxy: true,
 		}},
 	}
@@ -129,21 +129,21 @@ func TestAccountLoginResponseNoSecrets(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, exists := out.Data["cookies"]; exists {
-		t.Fatalf("登录响应不应包含 cookies 键")
+		t.Fatalf("登入回應不應包含 cookies 鍵")
 	}
-	// 只允许 Summary 字段
+	// 只允許 Summary 欄位
 	for key := range out.Data {
 		switch key {
 		case "id", "name", "real_email", "icloud_email", "host", "status", "alias_total",
 			"alias_active", "has_cookies", "has_app_password", "has_proxy",
 			"last_validated", "status_message", "created_at":
 		default:
-			t.Fatalf("登录响应包含意外字段 %q", key)
+			t.Fatalf("登入回應包含意外欄位 %q", key)
 		}
 	}
 }
 
-// TestAccountHandlerValidation 验证账号端点的参数校验(使用真实 manager 适配器)。
+// TestAccountHandlerValidation 驗證帳號端點的參數校驗(使用真實 manager 適配器)。
 func TestAccountHandlerValidation(t *testing.T) {
 	dir := t.TempDir()
 	mgr, err := account.NewManager(dir)
@@ -167,10 +167,10 @@ func TestAccountHandlerValidation(t *testing.T) {
 		status int
 		code   string
 	}{
-		{"空名称", "POST", "/api/accounts", `{"name":"","icloud_email":"a@icloud.com"}`, 400, "VALIDATION_ERROR"},
-		{"空邮箱", "POST", "/api/accounts", `{"name":"主号","icloud_email":""}`, 400, "VALIDATION_ERROR"},
-		{"非法主机", "POST", "/api/accounts", `{"name":"主号","icloud_email":"a@icloud.com","host":"evil.com"}`, 400, "VALIDATION_ERROR"},
-		{"非法代理", "POST", "/api/accounts", `{"name":"主号","icloud_email":"a@icloud.com","proxy":"ftp://x"}`, 400, "VALIDATION_ERROR"},
+		{"非法前綴", "POST", "/api/accounts", `{"icloud_email":"bad prefix"}`, 400, "VALIDATION_ERROR"},
+		{"空信箱", "POST", "/api/accounts", `{"name":"主號","icloud_email":""}`, 400, "VALIDATION_ERROR"},
+		{"非法主機", "POST", "/api/accounts", `{"name":"主號","icloud_email":"a@icloud.com","host":"evil.com"}`, 400, "VALIDATION_ERROR"},
+		{"非法代理", "POST", "/api/accounts", `{"name":"主號","icloud_email":"a@icloud.com","proxy":"ftp://x"}`, 400, "VALIDATION_ERROR"},
 		{"PATCH 空更新", "PATCH", "/api/accounts/acc_1", `{}`, 400, "VALIDATION_ERROR"},
 		{"PUT 非法代理", "PUT", "/api/accounts/acc_1/proxy", `{"proxy":"ftp://x"}`, 400, "VALIDATION_ERROR"},
 	}
@@ -192,9 +192,9 @@ func TestAccountHandlerValidation(t *testing.T) {
 	}
 }
 
-// TestAccountUpdateCookiesAcceptString 验证 PUT cookies 同时接受字符串和对象。
+// TestAccountUpdateCookiesAcceptString 驗證 PUT cookies 同時接受字串和物件。
 func TestAccountUpdateCookiesAcceptString(t *testing.T) {
-	f := &fakeBackend{accounts: []account.Summary{{ID: "acc_1", Name: "主号"}}}
+	f := &fakeBackend{accounts: []account.Summary{{ID: "acc_1", Name: "主號"}}}
 	s := newWithBackend(f, Config{
 		Debug:         false,
 		AdminPassword: "admin-pass-2026-strong",
@@ -204,26 +204,26 @@ func TestAccountUpdateCookiesAcceptString(t *testing.T) {
 
 	sess, csrf := login(t, ts, "admin-pass-2026-strong")
 
-	// 字符串输入
+	// 字串輸入
 	req := authedReq(t, ts, "PUT", "/api/accounts/acc_1/cookies", `{"cookies":"a=1; b=2"}`)
 	req.AddCookie(&http.Cookie{Name: "hme_session", Value: sess})
 	req.Header.Set("X-CSRF-Token", csrf)
 	status, _, _ := do(t, req)
 	if status != http.StatusOK {
-		t.Fatalf("字符串 cookies 期望 200,得到 %d", status)
+		t.Fatalf("字串 cookies 期望 200,得到 %d", status)
 	}
 
-	// 对象输入
+	// 物件輸入
 	req = authedReq(t, ts, "PUT", "/api/accounts/acc_1/cookies", `{"cookies":{"a":"1","b":"2"}}`)
 	req.AddCookie(&http.Cookie{Name: "hme_session", Value: sess})
 	req.Header.Set("X-CSRF-Token", csrf)
 	status, _, _ = do(t, req)
 	if status != http.StatusOK {
-		t.Fatalf("对象 cookies 期望 200,得到 %d", status)
+		t.Fatalf("物件 cookies 期望 200,得到 %d", status)
 	}
 }
 
-// TestAccountDeleteNotFound 验证删除不存在的账号返回 404/ACCOUNT_NOT_FOUND。
+// TestAccountDeleteNotFound 驗證刪除不存在的帳號返回 404/ACCOUNT_NOT_FOUND。
 func TestAccountDeleteNotFound(t *testing.T) {
 	f := &fakeBackend{removedOK: false}
 	s := newWithBackend(f, Config{

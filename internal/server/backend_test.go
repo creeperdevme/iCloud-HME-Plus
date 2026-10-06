@@ -15,7 +15,7 @@ import (
 	"icloud-hme/internal/mail"
 )
 
-// fakeBackend 是测试用内存 Backend,记录调用,不访问网络。
+// fakeBackend 是測試用記憶體 Backend,記錄呼叫,不訪問網路。
 type fakeBackend struct {
 	accounts []account.Summary
 	aliases  []hme.Alias
@@ -55,7 +55,7 @@ func (f *fakeBackend) AddAccount(in account.AddAccountInput) (account.Summary, e
 func (f *fakeBackend) UpdateAccount(id string, in account.UpdateAccountInput) (account.Summary, error) {
 	f.updatedID, f.updatedInput = id, in
 	if len(f.accounts) == 0 {
-		return account.Summary{}, fmt.Errorf("fake: 更新失败")
+		return account.Summary{}, fmt.Errorf("fake: 更新失敗")
 	}
 	return f.accounts[0], nil
 }
@@ -63,7 +63,7 @@ func (f *fakeBackend) UpdateAccount(id string, in account.UpdateAccountInput) (a
 func (f *fakeBackend) UpdateProxy(id, proxy string) (account.Summary, error) {
 	f.proxyID, f.proxyValue = id, proxy
 	if len(f.accounts) == 0 {
-		return account.Summary{}, fmt.Errorf("fake: 代理更新失败")
+		return account.Summary{}, fmt.Errorf("fake: 代理更新失敗")
 	}
 	return f.accounts[0], nil
 }
@@ -71,7 +71,7 @@ func (f *fakeBackend) UpdateProxy(id, proxy string) (account.Summary, error) {
 func (f *fakeBackend) UpdateCookies(id, cookies string) (account.Summary, error) {
 	f.cookiesID, f.cookiesValue = id, cookies
 	if len(f.accounts) == 0 {
-		return account.Summary{}, fmt.Errorf("fake: cookie 更新失败")
+		return account.Summary{}, fmt.Errorf("fake: cookie 更新失敗")
 	}
 	return f.accounts[0], nil
 }
@@ -79,14 +79,14 @@ func (f *fakeBackend) UpdateCookies(id, cookies string) (account.Summary, error)
 func (f *fakeBackend) SetAppPassword(id, email, appPassword string) (account.Summary, error) {
 	f.appPwdID, f.appPwdEmail = id, email
 	if len(f.accounts) == 0 {
-		return account.Summary{}, fmt.Errorf("fake: 密码设置失败")
+		return account.Summary{}, fmt.Errorf("fake: 密碼設定失敗")
 	}
 	return f.accounts[0], nil
 }
 
 func (f *fakeBackend) SetMailbox(id string, config account.MailboxConfig) (account.Summary, error) {
 	if len(f.accounts) == 0 {
-		return account.Summary{}, fmt.Errorf("fake: 收件邮箱设置失败")
+		return account.Summary{}, fmt.Errorf("fake: 收件信箱設定失敗")
 	}
 	return f.accounts[0], nil
 }
@@ -97,7 +97,7 @@ func (f *fakeBackend) LoginAccount(id, password, otp string) (account.Summary, e
 		return account.Summary{}, f.loginErr
 	}
 	if len(f.accounts) == 0 {
-		return account.Summary{}, fmt.Errorf("fake: 登录失败")
+		return account.Summary{}, fmt.Errorf("fake: 登入失敗")
 	}
 	return f.accounts[0], nil
 }
@@ -141,7 +141,7 @@ func (f *fakeBackend) Reload() error {
 	return nil
 }
 
-// newTestServer 构造带固定密码与 fake backend 的测试 Server。
+// newTestServer 構造帶固定密碼與 fake backend 的測試 Server。
 func newTestServer(f *fakeBackend) (*Server, *httptest.Server) {
 	cfg := Config{
 		Debug:         false,
@@ -153,7 +153,7 @@ func newTestServer(f *fakeBackend) (*Server, *httptest.Server) {
 	return s, ts
 }
 
-// login 登录测试服务并返回 session Cookie 与 CSRF。
+// login 登入測試服務並返回 session Cookie 與 CSRF。
 func login(t *testing.T, ts *httptest.Server, password string) (sessionCookie, csrf string) {
 	t.Helper()
 	body := fmt.Sprintf(`{"password":%q}`, password)
@@ -178,11 +178,11 @@ func login(t *testing.T, ts *httptest.Server, password string) (sessionCookie, c
 			return c.Value, out.Data.CSRFToken
 		}
 	}
-	t.Fatalf("响应未设置 hme_session Cookie (status=%d)", resp.StatusCode)
+	t.Fatalf("回應未設置 hme_session Cookie (status=%d)", resp.StatusCode)
 	return "", ""
 }
 
-// authedReq 构造带会话 Cookie 与 CSRF 头的请求。
+// authedReq 構造帶工作階段 Cookie 與 CSRF 頭的請求。
 func authedReq(t *testing.T, ts *httptest.Server, method, path, body string) *http.Request {
 	t.Helper()
 	var rd *strings.Reader

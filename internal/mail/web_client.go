@@ -1,7 +1,7 @@
-// Package mail - iCloud Web 邮件客户端
+// Package mail - iCloud Web 郵件用戶端
 //
-// 使用 Cookie 认证通过 iCloud Web API 读取邮件，
-// 无需 App Password。基于 mccgateway 服务。
+// 使用 Cookie 認證通過 iCloud Web API 讀取郵件，
+// 無需 App Password。基於 mccgateway 服務。
 package mail
 
 import (
@@ -18,10 +18,10 @@ import (
 	"github.com/google/uuid"
 )
 
-// WebClientBuildNumber 是与浏览器一致的 mccgateway 邮件接口构建号。
+// WebClientBuildNumber 是與瀏覽器一致的 mccgateway 郵件介面構建號。
 const WebClientBuildNumber = "2624Build13"
 
-// WebClient 是 iCloud Web 邮件客户端。
+// WebClient 是 iCloud Web 郵件用戶端。
 type WebClient struct {
 	cookies       map[string]string
 	dsid          string
@@ -31,7 +31,7 @@ type WebClient struct {
 	httpc         tls_client.HttpClient
 }
 
-// NewWebClient 创建一个 Web 邮件客户端。
+// NewWebClient 建立一個 Web 郵件用戶端。
 func NewWebClient(cookies map[string]string, dsid, host string) *WebClient {
 	jar := tls_client.NewCookieJar()
 	options := []tls_client.HttpClientOption{
@@ -55,7 +55,7 @@ func NewWebClient(cookies map[string]string, dsid, host string) *WebClient {
 		httpc:    httpc,
 	}
 
-	// 设置 Cookie 到所有相关域名(确保跨域请求能传递 Cookie)
+	// 設定 Cookie 到所有相關域名(確保跨域請求能傳遞 Cookie)
 	if len(cookies) > 0 {
 		suffix := "icloud.com"
 		if host == "icloud.com.cn" {
@@ -84,12 +84,12 @@ func NewWebClient(cookies map[string]string, dsid, host string) *WebClient {
 	return c
 }
 
-// origin 返回当前账号对应的 Web Origin。
+// origin 返回當前帳號對應的 Web Origin。
 func (c *WebClient) origin() string {
 	return "https://www." + c.host
 }
 
-// setCommonHeaders 设置与浏览器一致的通用请求头。
+// setCommonHeaders 設定與瀏覽器一致的通用請求頭。
 func (c *WebClient) setCommonHeaders(req *http.Request) {
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Origin", c.origin())
@@ -101,7 +101,7 @@ func (c *WebClient) setCommonHeaders(req *http.Request) {
 	req.Header.Set("Sec-Fetch-Site", "same-site")
 }
 
-// withParams 给 URL 追加 clientBuildNumber / clientId / dsid 查询参数。
+// withParams 給 URL 追加 clientBuildNumber / clientId / dsid 查詢參數。
 func (c *WebClient) withParams(rawURL string) string {
 	sep := "?"
 	if strings.Contains(rawURL, "?") {
@@ -111,7 +111,7 @@ func (c *WebClient) withParams(rawURL string) string {
 		rawURL, sep, WebClientBuildNumber, WebClientBuildNumber, c.clientID, c.dsid)
 }
 
-// resolveMccGateway 从 validate 响应中获取 mccgateway URL。
+// resolveMccGateway 從 validate 回應中取得 mccgateway URL。
 func (c *WebClient) resolveMccGateway() error {
 	if c.mccGatewayURL != "" {
 		return nil
@@ -132,7 +132,7 @@ func (c *WebClient) resolveMccGateway() error {
 
 	body, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode != 200 {
-		return fmt.Errorf("validate 失败: HTTP %d - %s", resp.StatusCode, truncate(string(body), 200))
+		return fmt.Errorf("validate 失敗: HTTP %d - %s", resp.StatusCode, truncate(string(body), 200))
 	}
 
 	var parsed struct {
@@ -143,18 +143,18 @@ func (c *WebClient) resolveMccGateway() error {
 		} `json:"webservices"`
 	}
 	if err := json.Unmarshal(body, &parsed); err != nil {
-		return fmt.Errorf("解析 validate 响应失败: %w", err)
+		return fmt.Errorf("解析 validate 回應失敗：%w", err)
 	}
 
 	mccURL := parsed.Webservices.Mccgateway.URL
 	if mccURL == "" {
-		return fmt.Errorf("未找到 mccgateway URL,响应: %s", truncate(string(body), 200))
+		return fmt.Errorf("找不到 mccgateway URL，回應：%s", truncate(string(body), 200))
 	}
 	if !strings.HasPrefix(mccURL, "https://") {
 		mccURL = "https://" + mccURL
 	}
-	// 去掉端口号(如 :443)——tls-client 的 cookie jar 按不带端口的 host 存储 Cookie,
-	// 带端口的 URL 会导致 Cookie 无法附加,返回 403。
+	// 去掉連接埠號(如 :443)——tls-client 的 cookie jar 按不帶連接埠的 host 儲存 Cookie,
+	// 帶連接埠的 URL 會導致 Cookie 無法附加,返回 403。
 	if u, err := url.Parse(mccURL); err == nil && u.Host != "" {
 		u.Host = u.Hostname()
 		mccURL = u.String()
@@ -163,7 +163,7 @@ func (c *WebClient) resolveMccGateway() error {
 	return nil
 }
 
-// threadSearchResp 是 thread/search 接口的响应结构。
+// threadSearchResp 是 thread/search 介面的回應結構。
 type threadSearchResp struct {
 	TotalThreadsReturned int `json:"totalThreadsReturned"`
 	ThreadList           []struct {
@@ -175,7 +175,7 @@ type threadSearchResp struct {
 	} `json:"threadList"`
 }
 
-// search 执行 thread/search 请求,返回解析后的邮件列表。
+// search 執行 thread/search 請求,返回解析後的郵件列表。
 func (c *WebClient) search(payload string) ([]Message, error) {
 	if err := c.resolveMccGateway(); err != nil {
 		return nil, err
@@ -196,15 +196,15 @@ func (c *WebClient) search(payload string) ([]Message, error) {
 
 	body, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode != 200 {
-		return nil, fmt.Errorf("获取邮件失败: HTTP %d - %s", resp.StatusCode, truncate(string(body), 300))
+		return nil, fmt.Errorf("取得郵件失敗：HTTP %d - %s", resp.StatusCode, truncate(string(body), 300))
 	}
 	if strings.Contains(string(body), `"success":false`) {
-		return nil, fmt.Errorf("获取邮件失败: %s", truncate(string(body), 300))
+		return nil, fmt.Errorf("取得郵件失敗：%s", truncate(string(body), 300))
 	}
 
 	var result threadSearchResp
 	if err := json.Unmarshal(body, &result); err != nil {
-		return nil, fmt.Errorf("解析邮件响应失败: %w", err)
+		return nil, fmt.Errorf("解析郵件回應失敗：%w", err)
 	}
 
 	messages := make([]Message, 0, len(result.ThreadList))
@@ -228,13 +228,13 @@ func (c *WebClient) search(payload string) ([]Message, error) {
 	return messages, nil
 }
 
-// ListInbox 列出收件箱邮件。
+// ListInbox 列出收件匣郵件。
 func (c *WebClient) ListInbox(limit int) ([]Message, error) {
 	payload := fmt.Sprintf(`{"responseType":"THREAD_DIGEST","includeFolderStatus":true,"maxResults":%d,"sessionHeaders":{"folder":"INBOX","modseq":null,"threadmodseq":null,"condstore":1,"qresync":1,"threadmode":1}}`, limit)
 	return c.search(payload)
 }
 
-// SearchMails 搜索邮件。query 为空时等价于 ListInbox。
+// SearchMails 搜索郵件。query 為空時等價於 ListInbox。
 func (c *WebClient) SearchMails(query string, limit int) ([]Message, error) {
 	if query == "" {
 		return c.ListInbox(limit)
@@ -243,9 +243,9 @@ func (c *WebClient) SearchMails(query string, limit int) ([]Message, error) {
 	return c.search(payload)
 }
 
-// FindByAlias 查找发给指定别名的邮件——在本地过滤(Web API 不支持收件人搜索)。
+// FindByAlias 查找發給指定別名的郵件——在本地過濾(Web API 不支援收件人搜索)。
 func (c *WebClient) FindByAlias(alias string, limit int) ([]Message, error) {
-	// 拉取收件箱全部邮件(最多取 2*limit),本地过滤
+	// 拉取收件匣全部郵件(最多取 2*limit),本地過濾
 	batchSize := limit * 2
 	if batchSize < 50 {
 		batchSize = 50
@@ -255,7 +255,7 @@ func (c *WebClient) FindByAlias(alias string, limit int) ([]Message, error) {
 		return nil, err
 	}
 
-	// 本地过滤: To/CC/BCC 或主题中包含 alias
+	// 本地過濾: To/CC/BCC 或主題中包含 alias
 	filtered := make([]Message, 0, limit)
 	for _, m := range raw {
 		if strings.Contains(strings.ToLower(m.Subject), strings.ToLower(alias)) ||

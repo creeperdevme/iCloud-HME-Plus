@@ -32,7 +32,7 @@ const HOVER_EXIT_DELAY = 1200
 export function useToast(): ToastContextValue {
   const ctx = useContext(ToastContext)
   if (!ctx) {
-    throw new Error('useToast 必须在 ToastProvider 内使用')
+    throw new Error('useToast 必須在 ToastProvider 內使用')
   }
   return ctx
 }
@@ -73,31 +73,26 @@ function Toast({ toast, onDismiss }: { toast: ToastItem; onDismiss: (id: number)
     }
   }
 
-  function pauseDismiss() {
-    clearTimer()
-  }
-
-  function resumeDismiss() {
-    scheduleDismiss(HOVER_EXIT_DELAY)
-  }
-
   return (
     <div
       className="toast"
       role="status"
       aria-label={toast.copyValue ? `${toast.message}：${toast.copyValue}` : toast.message}
-      onMouseEnter={pauseDismiss}
-      onMouseLeave={resumeDismiss}
-      onFocusCapture={pauseDismiss}
+      onMouseEnter={clearTimer}
+      onMouseLeave={() => scheduleDismiss(HOVER_EXIT_DELAY)}
+      onFocusCapture={clearTimer}
       onBlurCapture={(event) => {
         if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
-          resumeDismiss()
+          scheduleDismiss(HOVER_EXIT_DELAY)
         }
       }}
     >
       <IconCheck size={16} aria-hidden="true" />
       <div className="toast-content">
-        <span>{toast.message}{toast.copyValue ? '：' : ''}</span>
+        <span>
+          {toast.message}
+          {toast.copyValue ? '：' : ''}
+        </span>
         {toast.copyValue && <code className="toast-copy-value">{toast.copyValue}</code>}
       </div>
       {toast.copyValue && (
@@ -105,11 +100,11 @@ function Toast({ toast, onDismiss }: { toast: ToastItem; onDismiss: (id: number)
           type="button"
           className="toast-copy"
           onClick={() => void handleCopy()}
-          title="复制别名邮箱"
-          aria-label="复制"
+          title="複製別名信箱"
+          aria-label="複製"
         >
           <IconCopy size={14} />
-          {copyState === 'copied' ? '已复制' : copyState === 'failed' ? '复制失败' : '复制'}
+          {copyState === 'copied' ? '已複製' : copyState === 'failed' ? '複製失敗' : '複製'}
         </button>
       )}
     </div>
@@ -135,7 +130,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 
   const show = useCallback((message: string) => enqueue(message), [enqueue])
   const showCopyable = useCallback(
-    (value: string, message = '别名已创建') => enqueue(message, value),
+    (value: string, message = '別名已建立') => enqueue(message, value),
     [enqueue],
   )
   const dismiss = useCallback((id: number) => {

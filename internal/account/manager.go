@@ -1,7 +1,7 @@
-// Package account 实现多账号管理器。
+// Package account 實現多帳號管理器。
 //
-// 负责账号 CRUD、Cookie 解析(Header String / JSON)、持久化到 accounts.json,
-// 以及创建 HME 客户端和邮件客户端。对应原 Python 项目 account_manager.py。
+// 負責帳號 CRUD、Cookie 解析(Header String / JSON)、持久化到 accounts.json,
+// 以及建立 HME 用戶端和郵件用戶端。對應原 Python 項目 account_manager.py。
 package account
 
 import (
@@ -19,7 +19,7 @@ import (
 	"icloud-hme/internal/mail"
 )
 
-// Account 描述一个 iCloud 账号。
+// Account 描述一個 iCloud 帳號。
 type Account struct {
 	ID            string            `json:"id"`
 	Name          string            `json:"name"`
@@ -47,16 +47,16 @@ type MailboxConfig struct {
 	Password string `json:"password,omitempty"`
 }
 
-// Manager 管理多个 iCloud 账号,线程安全。
+// Manager 管理多個 iCloud 帳號,執行緒安全。
 type Manager struct {
 	mu       sync.RWMutex
 	accounts map[string]*Account
 	dataDir  string
 	dataFile string
-	imapPool *mail.Pool // IMAP 长连接池
+	imapPool *mail.Pool // IMAP 長連線池
 }
 
-// cloneCookies 返回 Cookie map 的独立副本。
+// cloneCookies 返回 Cookie map 的獨立副本。
 func cloneCookies(cookies map[string]string) map[string]string {
 	if cookies == nil {
 		return nil
@@ -68,7 +68,7 @@ func cloneCookies(cookies map[string]string) map[string]string {
 	return cloned
 }
 
-// copyAccount 返回账号的深拷贝(含 Cookies map),必须在持锁时调用。
+// copyAccount 返回帳號的深拷貝(含 Cookies map),必須在持鎖時呼叫。
 func copyAccount(acc *Account) *Account {
 	if acc == nil {
 		return nil
@@ -78,7 +78,7 @@ func copyAccount(acc *Account) *Account {
 	return &cp
 }
 
-// NewManager 创建管理器。dataDir 用于存放 accounts.json。
+// NewManager 建立管理器。dataDir 用於存放 accounts.json。
 func NewManager(dataDir string) (*Manager, error) {
 	if err := os.MkdirAll(dataDir, 0755); err != nil {
 		return nil, err
@@ -95,14 +95,14 @@ func NewManager(dataDir string) (*Manager, error) {
 	return m, nil
 }
 
-// Close 释放 IMAP 连接池等资源。
+// Close 釋放 IMAP 連線池等資源。
 func (m *Manager) Close() {
 	if m.imapPool != nil {
 		m.imapPool.Close()
 	}
 }
 
-// Reload 重新加载 accounts.json 配置文件。
+// Reload 重新載入 accounts.json 配置檔案。
 func (m *Manager) Reload() error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -145,15 +145,15 @@ func (m *Manager) save() error {
 	return os.WriteFile(m.dataFile, raw, 0600)
 }
 
-// ParseCookieInput 解析 Cookie 输入,支持两种格式:
+// ParseCookieInput 解析 Cookie 輸入,支援兩種格式:
 //   - Header String: "name1=value1; name2=value2; ..."
 //   - JSON: {"name1":"value1","name2":"value2"}
 //
-// 空输入返回错误。
+// 空輸入返回錯誤。
 func ParseCookieInput(raw string) (map[string]string, error) {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
-		return nil, fmt.Errorf("空白输入 — 请粘贴 Cookie Header String 或 JSON")
+		return nil, fmt.Errorf("輸入為空 — 請貼上 Cookie Header String 或 JSON")
 	}
 
 	// JSON 格式
@@ -187,17 +187,17 @@ func ParseCookieInput(raw string) (map[string]string, error) {
 		}
 	}
 	if len(cookies) == 0 {
-		return nil, fmt.Errorf("无法解析 Cookie 输入,请提供 Header String 或 JSON 格式")
+		return nil, fmt.Errorf("無法解析 Cookie 輸入，請提供 Header String 或 JSON 格式")
 	}
 	return cookies, nil
 }
 
-// AddAccount 添加一个账号。cookieInput 可为空,后续可通过 /login 获取。
+// AddAccount 新增一個帳號。cookieInput 可為空,後續可通過 /login 取得。
 //
-// cookieInput 支持 Header String 或 JSON。校验失败仍会保存账号(status=error),
-// 方便用户后续修正 Cookie 后重新校验。
+// cookieInput 支援 Header String 或 JSON。校驗失敗仍會儲存帳號(status=error),
+// 方便使用者後續修正 Cookie 後重新校驗。
 //
-// 兼容入口:新调用方请使用 AddAccountWithInput。
+// 兼容入口:新呼叫方請使用 AddAccountWithInput。
 func (m *Manager) AddAccount(name, cookieInput, host, proxy string) (*Account, error) {
 	if host == "" {
 		host = "icloud.com"
@@ -216,26 +216,32 @@ func (m *Manager) AddAccount(name, cookieInput, host, proxy string) (*Account, e
 	return acc, nil
 }
 
-// AddAccountWithInput 添加账号(带完整校验)。
+// AddAccountWithInput 新增帳號(帶完整校驗)。
 //
-// 无 Cookie 的添加路径不访问网络;有 Cookie 时在锁外对快照执行会话校验。
+// Name 選填:留空時自動取 iCloud 信箱 Prefix 作為顯示名稱。
+// ICloudEmail 兼容兩種輸入:完整信箱,或僅 Prefix(自動補全 @host)。
+//
+// 無 Cookie 的新增路徑不訪問網路;有 Cookie 時在鎖外對快照執行工作階段校驗。
 func (m *Manager) AddAccountWithInput(input AddAccountInput) (Summary, error) {
-	name, err := validateName(input.Name)
-	if err != nil {
-		return Summary{}, err
-	}
-	if err := validateEmail(input.ICloudEmail); err != nil {
-		return Summary{}, err
-	}
 	host, err := validateHost(input.Host)
 	if err != nil {
+		return Summary{}, err
+	}
+	email, err := NormalizeICloudEmail(input.ICloudEmail, host)
+	if err != nil {
+		return Summary{}, err
+	}
+	name := strings.TrimSpace(input.Name)
+	if name == "" {
+		name = DefaultAccountName(email)
+	} else if name, err = validateName(name); err != nil {
 		return Summary{}, err
 	}
 	proxy, err := validateProxy(input.Proxy)
 	if err != nil {
 		return Summary{}, err
 	}
-	acc, err := m.newAccount(name, input.ICloudEmail, input.CookieInput, host, proxy)
+	acc, err := m.newAccount(name, email, input.CookieInput, host, proxy)
 	if err != nil {
 		return Summary{}, err
 	}
@@ -249,7 +255,7 @@ func (m *Manager) AddAccountWithInput(input AddAccountInput) (Summary, error) {
 	return acc.Summary(), nil
 }
 
-// newAccount 构造账号;cookieInput 非空时在锁外对快照执行会话校验。
+// newAccount 構造帳號;cookieInput 非空時在鎖外對快照執行工作階段校驗。
 func (m *Manager) newAccount(name, icloudEmail, cookieInput, host, proxy string) (*Account, error) {
 	var cookies map[string]string
 	if cookieInput != "" {
@@ -270,18 +276,18 @@ func (m *Manager) newAccount(name, icloudEmail, cookieInput, host, proxy string)
 		Cookies:     cookies,
 		Host:        host,
 		Proxy:       proxy,
-		Status:      "pending", // 无 Cookie 时为 pending
+		Status:      "pending", // 無 Cookie 時為 pending
 		CreatedAt:   time.Now().Format(time.RFC3339),
 	}
 
-	// 有 Cookie 才校验会话
+	// 有 Cookie 才校驗工作階段
 	if len(cookies) > 0 {
 		acc.validateCookies()
 	}
 	return acc, nil
 }
 
-// validateCookies 用 Cookie 校验会话并填充账号身份(在锁外对快照操作)。
+// validateCookies 用 Cookie 校驗工作階段並填充帳號身份(在鎖外對快照操作)。
 func (a *Account) validateCookies() {
 	host := a.Host
 	if host == "" {
@@ -294,13 +300,13 @@ func (a *Account) validateCookies() {
 		return
 	}
 	if err := client.ValidateSession(); err != nil {
-		// validate 即使失败也可能通过 Set-Cookie 刷新部分会话状态。
+		// validate 即使失敗也可能通過 Set-Cookie 刷新部分工作階段狀態。
 		a.Cookies = client.Cookies
 		a.Status = "error"
 		a.LastError = truncate(err.Error(), 300)
 		return
 	}
-	// 显式接收 validate 刷新的 Cookie，不依赖传入 map 的引用关系。
+	// 顯式接收 validate 刷新的 Cookie，不依賴傳入 map 的引用關係。
 	a.Cookies = client.Cookies
 	a.Status = "active"
 	if info := client.AccountInfo(); info != nil {
@@ -320,10 +326,10 @@ func (a *Account) validateCookies() {
 	a.LastValidated = time.Now().Format(time.RFC3339)
 }
 
-// UpdateMetadata 编辑账号基本信息(名称、iCloud 邮箱、主机),至少提供一个字段。
+// UpdateMetadata 編輯帳號基本資訊(名稱、iCloud 信箱、主機),至少提供一個欄位。
 func (m *Manager) UpdateMetadata(id string, input UpdateAccountInput) (Summary, error) {
 	if input.Name == nil && input.ICloudEmail == nil && input.Host == nil {
-		return Summary{}, fmt.Errorf("至少需要提供一个可编辑字段")
+		return Summary{}, fmt.Errorf("至少需要提供一個可編輯欄位")
 	}
 	var name, email, host *string
 	if input.Name != nil {
@@ -334,9 +340,7 @@ func (m *Manager) UpdateMetadata(id string, input UpdateAccountInput) (Summary, 
 		name = &v
 	}
 	if input.ICloudEmail != nil {
-		if err := validateEmail(*input.ICloudEmail); err != nil {
-			return Summary{}, err
-		}
+		// Prefix 需要帳號當前的 host 才能補全,故規範化延後到持鎖之後。
 		v := strings.TrimSpace(*input.ICloudEmail)
 		email = &v
 	}
@@ -352,13 +356,21 @@ func (m *Manager) UpdateMetadata(id string, input UpdateAccountInput) (Summary, 
 	defer m.mu.Unlock()
 	acc, ok := m.accounts[id]
 	if !ok {
-		return Summary{}, fmt.Errorf("账号不存在: %s", id)
+		return Summary{}, fmt.Errorf("帳號不存在: %s", id)
 	}
 	if name != nil {
 		acc.Name = *name
 	}
 	if email != nil {
-		acc.ICloudEmail = *email
+		resolvedHost := acc.Host
+		if host != nil {
+			resolvedHost = *host
+		}
+		v, err := NormalizeICloudEmail(*email, resolvedHost)
+		if err != nil {
+			return Summary{}, err
+		}
+		acc.ICloudEmail = v
 	}
 	if host != nil {
 		acc.Host = *host
@@ -369,7 +381,7 @@ func (m *Manager) UpdateMetadata(id string, input UpdateAccountInput) (Summary, 
 	return acc.Summary(), nil
 }
 
-// UpdateProxy 更新或清除账号代理。空字符串表示清除。
+// UpdateProxy 更新或清除帳號代理。空字串表示清除。
 func (m *Manager) UpdateProxy(id, proxy string) (Summary, error) {
 	proxy, err := validateProxy(proxy)
 	if err != nil {
@@ -379,7 +391,7 @@ func (m *Manager) UpdateProxy(id, proxy string) (Summary, error) {
 	defer m.mu.Unlock()
 	acc, ok := m.accounts[id]
 	if !ok {
-		return Summary{}, fmt.Errorf("账号不存在: %s", id)
+		return Summary{}, fmt.Errorf("帳號不存在: %s", id)
 	}
 	acc.Proxy = proxy
 	if err := m.save(); err != nil {
@@ -388,7 +400,7 @@ func (m *Manager) UpdateProxy(id, proxy string) (Summary, error) {
 	return acc.Summary(), nil
 }
 
-// RemoveAccount 删除账号。
+// RemoveAccount 刪除帳號。
 func (m *Manager) RemoveAccount(id string) bool {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -400,7 +412,7 @@ func (m *Manager) RemoveAccount(id string) bool {
 	return true
 }
 
-// GetAccount 返回账号深拷贝(含 Cookies),调用方可安全使用。
+// GetAccount 返回帳號深拷貝(含 Cookies),呼叫方可安全使用。
 func (m *Manager) GetAccount(id string) (*Account, bool) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -411,8 +423,8 @@ func (m *Manager) GetAccount(id string) (*Account, bool) {
 	return copyAccount(acc), true
 }
 
-// ListAccounts 返回所有账号的深拷贝(脱敏,不含 Cookies),按活跃状态排序。
-// 兼容入口:新调用方请使用 ListSummaries。
+// ListAccounts 返回所有帳號的深拷貝(脫敏,不含 Cookies),按活躍狀態排序。
+// 兼容入口:新呼叫方請使用 ListSummaries。
 func (m *Manager) ListAccounts() []*Account {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -431,8 +443,8 @@ func (m *Manager) ListAccounts() []*Account {
 	return out
 }
 
-// ListSummaries 返回所有账号的安全摘要,排序为 active → pending → error,
-// 同状态按 name、id 升序。
+// ListSummaries 返回所有帳號的安全摘要,排序為 active → pending → error,
+// 同狀態按 name、id 升序。
 func (m *Manager) ListSummaries() []Summary {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -453,7 +465,7 @@ func (m *Manager) ListSummaries() []Summary {
 	return out
 }
 
-// statusRank 返回状态的排序权重。
+// statusRank 返回狀態的排序權重。
 func statusRank(status string) int {
 	switch status {
 	case "active":
@@ -465,8 +477,8 @@ func statusRank(status string) int {
 	}
 }
 
-// HMEClient 为指定账号创建一个新的 HME 客户端。
-// 必须有有效的 Cookie 才能使用 HME 功能。
+// HMEClient 為指定帳號建立一個新的 HME 用戶端。
+// 必須有有效的 Cookie 才能使用 HME 功能。
 func (m *Manager) HMEClient(id string, verbose bool) (*hme.Client, error) {
 	m.mu.RLock()
 	acc, ok := m.accounts[id]
@@ -476,16 +488,16 @@ func (m *Manager) HMEClient(id string, verbose bool) (*hme.Client, error) {
 	}
 	m.mu.RUnlock()
 	if !ok {
-		return nil, fmt.Errorf("账号不存在: %s", id)
+		return nil, fmt.Errorf("帳號不存在: %s", id)
 	}
 	if len(snap.Cookies) == 0 {
-		return nil, fmt.Errorf("账号未配置 Cookie，无法使用 HME 功能")
+		return nil, fmt.Errorf("帳號尚未設定 Cookie，無法使用 HME 功能")
 	}
 	return hme.NewClient(snap.Cookies, snap.Host, snap.Proxy, verbose)
 }
 
-// HMEClientWithPassword 为指定账号创建一个新的 HME 客户端,使用账号密码登录。
-// 登录成功后会自动获取 Cookie 并保存到账号配置。
+// HMEClientWithPassword 為指定帳號建立一個新的 HME 用戶端,使用帳號密碼登入。
+// 登入成功後會自動取得 Cookie 並儲存到帳號配置。
 func (m *Manager) HMEClientWithPassword(id, password string, otpProvider hme.OTPProvider) (*hme.Client, error) {
 	m.mu.RLock()
 	acc, ok := m.accounts[id]
@@ -495,7 +507,7 @@ func (m *Manager) HMEClientWithPassword(id, password string, otpProvider hme.OTP
 	}
 	m.mu.RUnlock()
 	if !ok {
-		return nil, fmt.Errorf("账号不存在: %s", id)
+		return nil, fmt.Errorf("帳號不存在: %s", id)
 	}
 
 	email := snap.ICloudEmail
@@ -503,7 +515,7 @@ func (m *Manager) HMEClientWithPassword(id, password string, otpProvider hme.OTP
 		email = snap.RealEmail
 	}
 	if email == "" {
-		return nil, fmt.Errorf("账号未设置邮箱地址")
+		return nil, fmt.Errorf("帳號尚未設定信箱位址")
 	}
 
 	client, err := hme.NewClient(nil, snap.Host, snap.Proxy, true)
@@ -515,23 +527,23 @@ func (m *Manager) HMEClientWithPassword(id, password string, otpProvider hme.OTP
 		return nil, err
 	}
 
-	// 先保存 accountLogin 返回的 Cookie，随后通过 validate 刷新会话并再次持久化。
-	// 国区与美区都走同一条刷新链路，避免只保存登录阶段的临时 token。
+	// 先儲存 accountLogin 返回的 Cookie，隨後通過 validate 刷新工作階段並再次持久化。
+	// 國區與美區都走同一條刷新鏈路，避免只儲存登入階段的臨時 token。
 	if err := m.SaveCookies(id, client.Cookies); err != nil {
 		return nil, err
 	}
 	if err := client.ValidateSession(); err != nil {
-		// validate 的失败响应也可能携带 Set-Cookie，尽量保留服务端最新状态。
+		// validate 的失敗回應也可能攜帶 Set-Cookie，盡量保留服務端最新狀態。
 		_ = m.SaveCookies(id, client.Cookies)
 		return nil, err
 	}
 
-	// 保存 validate 刷新后的 Cookie 和账号状态。
+	// 儲存 validate 刷新後的 Cookie 和帳號狀態。
 	m.mu.Lock()
 	cur, ok := m.accounts[id]
 	if !ok {
 		m.mu.Unlock()
-		return nil, fmt.Errorf("账号不存在: %s", id)
+		return nil, fmt.Errorf("帳號不存在: %s", id)
 	}
 	cur.Cookies = cloneCookies(client.Cookies)
 	cur.Status = "active"
@@ -552,9 +564,9 @@ func (m *Manager) HMEClientWithPassword(id, password string, otpProvider hme.OTP
 	return client, nil
 }
 
-// MailClient 为指定账号创建 IMAP 邮件客户端(每次新建, 不走连接池)。
-// 需要事先设置 iCloud 邮箱和 App 专用密码。
-// 高频读信请用 WithMailClient 复用长连接。
+// MailClient 為指定帳號建立 IMAP 郵件用戶端(每次新建, 不走連線池)。
+// 需要事先設定 iCloud 信箱和 App 專用密碼。
+// 高頻讀信請用 WithMailClient 複用長連線。
 func (m *Manager) MailClient(id string) (*mail.Client, error) {
 	m.mu.RLock()
 	acc, ok := m.accounts[id]
@@ -564,7 +576,7 @@ func (m *Manager) MailClient(id string) (*mail.Client, error) {
 	}
 	m.mu.RUnlock()
 	if !ok {
-		return nil, fmt.Errorf("账号不存在: %s", id)
+		return nil, fmt.Errorf("帳號不存在: %s", id)
 	}
 	if snap.Mailbox != nil && snap.Mailbox.Email != "" && snap.Mailbox.Password != "" {
 		return mail.NewClientWithServer(snap.Mailbox.Email, snap.Mailbox.Password, snap.Mailbox.IMAPHost, snap.Mailbox.IMAPPort), nil
@@ -574,16 +586,16 @@ func (m *Manager) MailClient(id string) (*mail.Client, error) {
 		imapEmail = snap.RealEmail
 	}
 	if !isICloudDomain(imapEmail) {
-		return nil, fmt.Errorf("账号未设置 iCloud 邮箱 (当前: %s)", imapEmail)
+		return nil, fmt.Errorf("帳號尚未設定 iCloud 信箱（目前：%s）", imapEmail)
 	}
 	if snap.AppPassword == "" {
-		return nil, fmt.Errorf("账号未设置 App 专用密码")
+		return nil, fmt.Errorf("帳號尚未設定 App 專用密碼")
 	}
 	return mail.NewClient(imapEmail, snap.AppPassword), nil
 }
 
-// WithMailClient 使用连接池中的长连接执行 fn(串行/账号级)。
-// fn 返回后连接保留在池中, 不会 Logout。
+// WithMailClient 使用連線池中的長連線執行 fn(循序/帳號級)。
+// fn 返回後連線保留在池中, 不會 Logout。
 func (m *Manager) WithMailClient(id string, fn func(*mail.Client) error) error {
 	m.mu.RLock()
 	acc, ok := m.accounts[id]
@@ -620,17 +632,17 @@ func (m *Manager) imapCreds(id string) (imapEmail, appPassword string, err error
 	}
 	m.mu.RUnlock()
 	if !ok {
-		return "", "", fmt.Errorf("账号不存在: %s", id)
+		return "", "", fmt.Errorf("帳號不存在: %s", id)
 	}
 	imapEmail = snap.ICloudEmail
 	if imapEmail == "" {
 		imapEmail = snap.RealEmail
 	}
 	if !isICloudDomain(imapEmail) {
-		return "", "", fmt.Errorf("账号未设置 iCloud 邮箱 (当前: %s)", imapEmail)
+		return "", "", fmt.Errorf("帳號尚未設定 iCloud 信箱（目前：%s）", imapEmail)
 	}
 	if snap.AppPassword == "" {
-		return "", "", fmt.Errorf("账号未设置 App 专用密码")
+		return "", "", fmt.Errorf("帳號尚未設定 App 專用密碼")
 	}
 	return imapEmail, snap.AppPassword, nil
 }
@@ -641,16 +653,16 @@ func (m *Manager) SetMailbox(id string, config MailboxConfig) error {
 	config.Email = strings.TrimSpace(config.Email)
 	config.IMAPHost = strings.TrimSpace(config.IMAPHost)
 	if config.Email == "" || config.IMAPHost == "" || config.Password == "" {
-		return fmt.Errorf("收件邮箱、IMAP 服务器和授权码不能为空")
+		return fmt.Errorf("收件信箱、IMAP 伺服器與授權碼不能為空")
 	}
 	if strings.Contains(config.IMAPHost, "://") || config.IMAPPort < 1 || config.IMAPPort > 65535 {
-		return fmt.Errorf("IMAP 服务器或端口无效")
+		return fmt.Errorf("IMAP 伺服器或連接埠無效")
 	}
 	m.mu.RLock()
 	_, ok := m.accounts[id]
 	m.mu.RUnlock()
 	if !ok {
-		return fmt.Errorf("账号不存在: %s", id)
+		return fmt.Errorf("帳號不存在: %s", id)
 	}
 	mc := mail.NewClientWithServer(config.Email, config.Password, config.IMAPHost, config.IMAPPort)
 	if err := mc.Connect(); err != nil {
@@ -665,14 +677,14 @@ func (m *Manager) SetMailbox(id string, config MailboxConfig) error {
 	defer m.mu.Unlock()
 	acc, ok := m.accounts[id]
 	if !ok {
-		return fmt.Errorf("账号不存在: %s", id)
+		return fmt.Errorf("帳號不存在: %s", id)
 	}
 	acc.Mailbox = &config
 	return m.save()
 }
 
-// WebMailClient 为指定账号创建 Web 邮件客户端。
-// 使用 Cookie 认证，无需 App Password。
+// WebMailClient 為指定帳號建立 Web 郵件用戶端。
+// 使用 Cookie 認證，無需 App Password。
 func (m *Manager) WebMailClient(id string) (*mail.WebClient, error) {
 	m.mu.RLock()
 	acc, ok := m.accounts[id]
@@ -682,12 +694,12 @@ func (m *Manager) WebMailClient(id string) (*mail.WebClient, error) {
 	}
 	m.mu.RUnlock()
 	if !ok {
-		return nil, fmt.Errorf("账号不存在: %s", id)
+		return nil, fmt.Errorf("帳號不存在: %s", id)
 	}
 	if len(snap.Cookies) == 0 {
-		return nil, fmt.Errorf("账号未配置 Cookie，无法读取邮件")
+		return nil, fmt.Errorf("帳號尚未設定 Cookie，無法讀取郵件")
 	}
-	// 从 cookies 中获取 dsid
+	// 從 cookies 中取得 dsid
 	dsid := ""
 	if v, ok := snap.Cookies["X-APPLE-WEBAUTH-USER"]; ok {
 		// 解析 "v=1:s=1:d=22789132008" 格式
@@ -699,23 +711,23 @@ func (m *Manager) WebMailClient(id string) (*mail.WebClient, error) {
 	return mail.NewWebClient(snap.Cookies, dsid, snap.Host), nil
 }
 
-// SetAppPassword 设置 iCloud 邮箱和 App 专用密码,并测试 IMAP 连接。
+// SetAppPassword 設定 iCloud 信箱和 App 專用密碼,並測試 IMAP 連線。
 func (m *Manager) SetAppPassword(id, icloudEmail, appPassword string) error {
 	if icloudEmail == "" {
-		return fmt.Errorf("iCloud 邮箱不能为空")
+		return fmt.Errorf("iCloud 信箱不能為空")
 	}
 	if appPassword == "" {
-		return fmt.Errorf("App 专用密码不能为空")
+		return fmt.Errorf("App 專用密碼不能為空")
 	}
 
 	m.mu.RLock()
 	_, ok := m.accounts[id]
 	m.mu.RUnlock()
 	if !ok {
-		return fmt.Errorf("账号不存在: %s", id)
+		return fmt.Errorf("帳號不存在: %s", id)
 	}
 
-	// 测试连接(锁外)
+	// 測試連線(鎖外)
 	mc := mail.NewClient(icloudEmail, appPassword)
 	if err := mc.Connect(); err != nil {
 		return err
@@ -730,7 +742,7 @@ func (m *Manager) SetAppPassword(id, icloudEmail, appPassword string) error {
 	defer m.mu.Unlock()
 	acc, ok := m.accounts[id]
 	if !ok {
-		return fmt.Errorf("账号不存在: %s", id)
+		return fmt.Errorf("帳號不存在: %s", id)
 	}
 	acc.ICloudEmail = icloudEmail
 	acc.AppPassword = appPassword
@@ -741,23 +753,23 @@ func (m *Manager) SetAppPassword(id, icloudEmail, appPassword string) error {
 	return nil
 }
 
-// SaveCookies 保存指定账号的最新 Cookie（HMEClient 操作后刷新的 token）。
-// 用于客户端 validate/操作过程中从 Set-Cookie 获取了新 token 后持久化。
+// SaveCookies 儲存指定帳號的最新 Cookie（HMEClient 操作後刷新的 token）。
+// 用於用戶端 validate/操作過程中從 Set-Cookie 取得了新 token 後持久化。
 func (m *Manager) SaveCookies(id string, cookies map[string]string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	acc, ok := m.accounts[id]
 	if !ok {
-		return fmt.Errorf("账号不存在: %s", id)
+		return fmt.Errorf("帳號不存在: %s", id)
 	}
 	acc.Cookies = cloneCookies(cookies)
 	return m.save()
 }
 
-// UpdateCookies 更新指定账号的 Cookie,并自动校验会话有效性。
+// UpdateCookies 更新指定帳號的 Cookie,並自動校驗工作階段有效性。
 func (m *Manager) UpdateCookies(id string, cookies map[string]string) error {
 	if len(cookies) == 0 {
-		return fmt.Errorf("cookies 不能为空")
+		return fmt.Errorf("cookies 不能為空")
 	}
 	m.mu.RLock()
 	acc, ok := m.accounts[id]
@@ -767,10 +779,10 @@ func (m *Manager) UpdateCookies(id string, cookies map[string]string) error {
 	}
 	m.mu.RUnlock()
 	if !ok {
-		return fmt.Errorf("账号不存在: %s", id)
+		return fmt.Errorf("帳號不存在: %s", id)
 	}
 
-	// 自动校验 Cookie 是否有效(锁外对快照操作)
+	// 自動校驗 Cookie 是否有效(鎖外對快照操作)
 	snap.Cookies = cookies
 	if snap.Host == "" {
 		snap.Host = "icloud.com"
@@ -778,14 +790,14 @@ func (m *Manager) UpdateCookies(id string, cookies map[string]string) error {
 	client, err := hme.NewClient(cookies, snap.Host, snap.Proxy, false)
 	if err != nil {
 		snap.Status = "error"
-		snap.LastError = "创建客户端失败: " + err.Error()
+		snap.LastError = "建立用戶端失敗：" + err.Error()
 	} else if err := client.ValidateSession(); err != nil {
-		// validate 即使失败也可能通过 Set-Cookie 刷新部分会话状态。
+		// validate 即使失敗也可能通過 Set-Cookie 刷新部分工作階段狀態。
 		snap.Cookies = client.Cookies
 		snap.Status = "error"
-		snap.LastError = "Cookie 校验失败: " + err.Error()
+		snap.LastError = "Cookie 校驗失敗：" + err.Error()
 	} else {
-		// 显式保存 validate 响应刷新的 Cookie，不依赖传入 map 的引用关系。
+		// 顯式儲存 validate 回應刷新的 Cookie，不依賴傳入 map 的引用關係。
 		snap.Cookies = client.Cookies
 		snap.Status = "active"
 		snap.LastValidated = time.Now().Format(time.RFC3339)
@@ -802,7 +814,7 @@ func (m *Manager) UpdateCookies(id string, cookies map[string]string) error {
 	cur, ok := m.accounts[id]
 	if !ok {
 		m.mu.Unlock()
-		return fmt.Errorf("账号不存在: %s", id)
+		return fmt.Errorf("帳號不存在: %s", id)
 	}
 	cur.Cookies = snap.Cookies
 	cur.Status = snap.Status
@@ -820,14 +832,14 @@ func (m *Manager) UpdateCookies(id string, cookies map[string]string) error {
 	return saveErr
 }
 
-// ---- 辅助函数 ----
+// ---- 輔助函式 ----
 
-// deriveICloudEmail 从账号身份推导 iCloud 邮箱地址(用于 IMAP 登录)。
+// deriveICloudEmail 從帳號身份推導 iCloud 信箱位址(用於 IMAP 登入)。
 //
-// 规则:
+// 規則:
 //  1. primaryEmail 是 @icloud.com/@me.com/@mac.com → 直接用
 //  2. appleId 是上述域名 → 直接用
-//  3. appleId 是第三方邮箱(如 @qq.com) → 取 local part 拼 @icloud.com
+//  3. appleId 是第三方信箱(如 @qq.com) → 取 local part 拼 @icloud.com
 func deriveICloudEmail(info *hme.AccountInfo) string {
 	primary := strings.TrimSpace(info.PrimaryEmail)
 	appleID := strings.TrimSpace(info.AppleID)

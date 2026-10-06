@@ -12,43 +12,55 @@ export default function AppShell() {
   }
 
   return (
-    <div className="app-shell">
+    <div className="app">
       <a className="skip-link" href="#main-content">
-        跳到主要内容
+        跳到主要內容
       </a>
-      <header>
-        <div className="brand">
-          <span className="brand-logo" aria-hidden="true">
-            <IconShield size={18} />
+
+      <aside className="sidebar">
+        <div className="sidebar-brand">
+          <span className="brand-mark" aria-hidden="true">
+            <IconShield size={20} />
           </span>
-          <span>
-            iCloud HME 管理台
-            <span className="brand-sub" style={{ display: 'block' }}>
-              Hide My Email
-            </span>
+          <span className="brand-text">
+            <strong>iCloud Hide My Email</strong>
+            <span>Dashboard</span>
           </span>
         </div>
-        <nav aria-label="主导航">
-          <NavLink to="/accounts">
-            <IconAccounts />
-            账号
+
+        <nav className="sidebar-nav" aria-label="主要導覽">
+          <NavLink
+            to="/accounts"
+            className={({ isActive }) => (isActive ? 'nav-item active' : 'nav-item')}
+          >
+            <IconAccounts size={18} />
+            <span>帳號管理</span>
           </NavLink>
-          <NavLink to="/aliases">
-            <IconAliases />
-            别名
+          <NavLink
+            to="/aliases"
+            className={({ isActive }) => (isActive ? 'nav-item active' : 'nav-item')}
+          >
+            <IconAliases size={18} />
+            <span>別名管理</span>
           </NavLink>
-          <NavLink to="/inbox">
-            <IconInbox />
-            收件箱
+          <NavLink
+            to="/inbox"
+            className={({ isActive }) => (isActive ? 'nav-item active' : 'nav-item')}
+          >
+            <IconInbox size={18} />
+            <span>收件匣</span>
           </NavLink>
         </nav>
-        <span className="spacer" />
-        <button onClick={() => void handleLogout()} title="退出登录">
-          <IconLogout />
-          退出登录
-        </button>
-      </header>
-      <main id="main-content">
+
+        <div className="sidebar-foot">
+          <button className="nav-item" onClick={() => void handleLogout()} title="登出管理台">
+            <IconLogout size={18} />
+            <span>登出</span>
+          </button>
+        </div>
+      </aside>
+
+      <main className="main" id="main-content">
         <Outlet />
       </main>
     </div>

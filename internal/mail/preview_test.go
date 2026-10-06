@@ -3,8 +3,8 @@ package mail
 import "testing"
 
 func TestSanitizePreviewRemovesInvisibleHTMLBlocks(t *testing.T) {
-	raw := `<html><head><style>@font-face { font-family: Söhne; } body { color: red; }</style></head><body><p>验证码：123456</p><script>alert(1)</script></body></html>`
-	if got := sanitizePreview(raw); got != "验证码：123456" {
+	raw := `<html><head><style>@font-face { font-family: Söhne; } body { color: red; }</style></head><body><p>驗證碼：123456</p><script>alert(1)</script></body></html>`
+	if got := sanitizePreview(raw); got != "驗證碼：123456" {
 		t.Fatalf("sanitizePreview() = %q, want readable body", got)
 	}
 }
@@ -17,14 +17,14 @@ func TestSanitizePreviewDropsCSSOnlyContent(t *testing.T) {
 }
 
 func TestSanitizePreviewRemovesCSSPrefixAndKeepsBody(t *testing.T) {
-	raw := `@font-face { font-family: Söhne; } .ExternalClass { line-height: 100%; } 正文内容`
-	if got := sanitizePreview(raw); got != "正文内容" {
+	raw := `@font-face { font-family: Söhne; } .ExternalClass { line-height: 100%; } 正文內容`
+	if got := sanitizePreview(raw); got != "正文內容" {
 		t.Fatalf("sanitizePreview() = %q, want body text", got)
 	}
 }
 
 func TestSanitizePreviewKeepsNormalText(t *testing.T) {
-	raw := `订单号：A-123; 请在 10:00 前完成验证。`
+	raw := `訂單號：A-123; 請在 10:00 前完成驗證。`
 	if got := sanitizePreview(raw); got != raw {
 		t.Fatalf("sanitizePreview() = %q, want %q", got, raw)
 	}

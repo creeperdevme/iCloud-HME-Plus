@@ -10,19 +10,19 @@ interface AsyncStateProps {
   children: ReactNode
 }
 
-/** 统一异步状态:骨架屏 loading / error+retry / empty / content */
+/** 統一的非同步狀態：載入骨架 / 錯誤 + 重試 / 空狀態 / 內容 */
 export default function AsyncState({
   loading,
   error,
   empty,
-  emptyText = '暂无数据',
+  emptyText = '暫無資料',
   onRetry,
   children,
 }: AsyncStateProps) {
   if (loading) {
     return (
-      <div className="skeleton" role="status" aria-label="加载中" aria-busy="true">
-        <span className="visually-hidden">加载中</span>
+      <div className="skeleton" role="status" aria-label="載入中" aria-busy="true">
+        <span className="visually-hidden">載入中</span>
         <div className="skeleton-line" style={{ width: '30%' }} />
         <div className="skeleton-line" style={{ width: '85%' }} />
         <div className="skeleton-line" style={{ width: '70%' }} />
@@ -30,24 +30,31 @@ export default function AsyncState({
       </div>
     )
   }
+
   if (error) {
     return (
-      <div>
-        <div className="alert-error" role="alert" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <IconAlert size={18} style={{ flexShrink: 0 }} />
+      <div className="card">
+        <div className="alert alert-error" role="alert">
+          <IconAlert size={18} />
           <span>{error}</span>
         </div>
-        <button onClick={onRetry}>重试</button>
+        <div className="form-actions">
+          <button onClick={onRetry}>重試</button>
+        </div>
       </div>
     )
   }
+
   if (empty) {
     return (
-      <p className="empty-state">
-        <IconInboxEmpty className="empty-icon" />
-        {emptyText}
-      </p>
+      <div className="card">
+        <p className="empty-state">
+          <IconInboxEmpty className="empty-icon" />
+          {emptyText}
+        </p>
+      </div>
     )
   }
+
   return <>{children}</>
 }

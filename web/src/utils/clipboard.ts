@@ -1,6 +1,6 @@
 /**
- * 复制文本到剪贴板。
- * 某些浏览器扩展会拦截 Clipboard API，因此保留传统 API 作为降级路径。
+ * 複製文字到剪貼簿。
+ * 部分瀏覽器擴充功能會攔截 Clipboard API，因此保留傳統 API 作為降級路徑。
  */
 export async function copyText(value: string): Promise<boolean> {
   if (!value) return false
@@ -11,7 +11,7 @@ export async function copyText(value: string): Promise<boolean> {
       return true
     }
   } catch {
-    // 继续尝试传统复制，避免权限拒绝直接暴露给用户。
+    // 繼續嘗試傳統複製，避免權限被拒時直接對使用者拋錯。
   }
 
   return copyWithLegacyApi(value)

@@ -5,16 +5,16 @@ import (
 	"time"
 )
 
-// limiterEntry 记录一个 key 的失败次数与窗口起点。
+// limiterEntry 記錄一個 key 的失敗次數與窗口起點。
 type limiterEntry struct {
 	firstFailure time.Time
 	failures     int
 }
 
-// Limiter 按客户端 IP 的登录失败限流(固定窗口),线程安全。
+// Limiter 按用戶端 IP 的登入失敗限流(固定窗口),執行緒安全。
 //
-// 每次访问时删除已过窗口的 key,key 数达到上限时淘汰最早窗口,
-// 避免伪造来源地址造成内存 DoS。
+// 每次訪問時刪除已過窗口的 key,key 數達到上限時淘汰最早窗口,
+// 避免偽造來源位址造成記憶體 DoS。
 type Limiter struct {
 	mu          sync.Mutex
 	now         func() time.Time
@@ -24,8 +24,8 @@ type Limiter struct {
 	failures    map[string]limiterEntry
 }
 
-// NewLimiter 创建限流器。now 为可注入时钟,window 为固定窗口,
-// maxFailures 为窗口内允许的最大失败次数,maxKeys 为 key 数上限。
+// NewLimiter 建立限流器。now 為可注入時鐘,window 為固定窗口,
+// maxFailures 為窗口內允許的最大失敗次數,maxKeys 為 key 數上限。
 func NewLimiter(now func() time.Time, window time.Duration, maxFailures, maxKeys int) *Limiter {
 	if now == nil {
 		now = time.Now
@@ -39,9 +39,9 @@ func NewLimiter(now func() time.Time, window time.Duration, maxFailures, maxKeys
 	}
 }
 
-// Allow 记录一次失败并判断是否允许继续尝试。
+// Allow 記錄一次失敗並判斷是否允許繼續嘗試。
 //
-// 返回 allowed=false 时,retryAfter 为建议等待时间(不超过窗口)。
+// 返回 allowed=false 時,retryAfter 為建議等待時間(不超過窗口)。
 func (l *Limiter) Allow(key string) (allowed bool, retryAfter time.Duration) {
 	now := l.now()
 	l.mu.Lock()
@@ -49,7 +49,7 @@ func (l *Limiter) Allow(key string) (allowed bool, retryAfter time.Duration) {
 
 	entry, exists := l.failures[key]
 	if !exists || now.Sub(entry.firstFailure) >= l.window {
-		// 新窗口:重置计数
+		// 新窗口:重置計數
 		l.failures[key] = limiterEntry{firstFailure: now, failures: 1}
 		l.gcLocked(now)
 		return true, 0
@@ -67,14 +67,14 @@ func (l *Limiter) Allow(key string) (allowed bool, retryAfter time.Duration) {
 	return true, 0
 }
 
-// Success 标记登录成功,清除该 key 的失败记录。
+// Success 標記登入成功,清除該 key 的失敗記錄。
 func (l *Limiter) Success(key string) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	delete(l.failures, key)
 }
 
-// gcLocked 清理过窗 key 并淘汰最早窗口,须持锁调用。
+// gcLocked 清理過窗 key 並淘汰最早窗口,須持鎖呼叫。
 func (l *Limiter) gcLocked(now time.Time) {
 	for k, e := range l.failures {
 		if now.Sub(e.firstFailure) >= l.window {

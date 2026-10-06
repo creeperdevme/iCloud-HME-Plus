@@ -1,7 +1,7 @@
-// Package hme 实现了 iCloud Hide My Email 协议客户端。
+// Package hme 實現了 iCloud Hide My Email 協議用戶端。
 //
-// 基于 Cookie 会话,通过 tls-client 伪装 Chrome TLS 指纹规避 iCloud 风控。
-// 对应原 Python 项目 icloud_hme.py 的 ICloudHME 类。
+// 基於 Cookie 工作階段,通過 tls-client 偽裝 Chrome TLS 指紋規避 iCloud 風控。
+// 對應原 Python 項目 icloud_hme.py 的 ICloudHME 類。
 package hme
 
 import (
@@ -22,16 +22,16 @@ import (
 )
 
 const (
-	// ClientBuildNumber 是 iCloud Web 客户端构建号,从浏览器抓包获取。
-	// maildomainws (HME 别名管理) 专用。
+	// ClientBuildNumber 是 iCloud Web 用戶端構建號,從瀏覽器抓包取得。
+	// maildomainws (HME 別名管理) 專用。
 	ClientBuildNumber = "2624Build22"
-	// ClientMasteringNumber 是 iCloud Web 客户端主版本号。
+	// ClientMasteringNumber 是 iCloud Web 用戶端主版本號。
 	ClientMasteringNumber = "2624Build22"
-	// DefaultBuildNumber 用于 validate 和 mccgateway (邮件) 等非 HME 端点。
+	// DefaultBuildNumber 用於 validate 和 mccgateway (郵件) 等非 HME 端點。
 	DefaultBuildNumber = "2624Build13"
-	// RequestTimeout 单次请求超时。
+	// RequestTimeout 單次請求超時。
 	RequestTimeout = 15 * time.Second
-	// MaxRetries 最大重试次数。
+	// MaxRetries 最大重試次數。
 	MaxRetries = 3
 )
 
@@ -41,7 +41,7 @@ var retryDelays = []time.Duration{
 	5 * time.Second,
 }
 
-// AccountInfo 是从 /validate 响应中提取的账号身份信息。
+// AccountInfo 是從 /validate 回應中提取的帳號身份資訊。
 type AccountInfo struct {
 	DSID             string `json:"dsid"`
 	AppleID          string `json:"appleId"`
@@ -50,7 +50,7 @@ type AccountInfo struct {
 	IsManagedAppleID bool   `json:"isManagedAppleId"`
 }
 
-// Alias 是一个 Hide My Email 隐私邮箱别名。
+// Alias 是一個 Hide My Email 隱私信箱別名。
 type Alias struct {
 	Email       string `json:"email"`
 	AnonymousID string `json:"anonymousId"`
@@ -59,28 +59,28 @@ type Alias struct {
 	CreatedAt   string `json:"createdAt,omitempty"`
 }
 
-// Client 是 iCloud Hide My Email 客户端。
+// Client 是 iCloud Hide My Email 用戶端。
 //
-// 一个 Client 对应一个 iCloud 账号。通过传入的 Cookie 维持会话,
-// 首次调用业务方法时会自动触发 ValidateSession 解析 HME 服务端点。
+// 一個 Client 對應一個 iCloud 帳號。通過傳入的 Cookie 維持工作階段,
+// 首次呼叫業務方法時會自動觸發 ValidateSession 解析 HME 服務端點。
 type Client struct {
 	Cookies     map[string]string
 	Host        string // "icloud.com" 或 "icloud.com.cn"
 	Proxy       string // HTTP/SOCKS5 代理
-	Username    string // iCloud 账号 (用于登录)
-	Password    string // iCloud 密码 (用于登录)
+	Username    string // iCloud 帳號 (用於登入)
+	Password    string // iCloud 密碼 (用於登入)
 	Verbose     bool
 	httpc       tls_client.HttpClient
 	setupURL    string
 	serviceURL  string
-	dsid        string // 从 validate 响应提取
-	clientID    string // UUID,每次会话生成
+	dsid        string // 從 validate 回應提取
+	clientID    string // UUID,每次工作階段產生
 	accountInfo *AccountInfo
 }
 
-// NewClient 创建一个新的 HME 客户端,底层使用 Chrome TLS 指纹。
+// NewClient 建立一個新的 HME 用戶端,底層使用 Chrome TLS 指紋。
 //
-// proxy 支持格式:
+// proxy 支援格式:
 //   - HTTP:  "http://user:pass@host:port"
 //   - SOCKS5: "socks5://user:pass@host:port"
 func NewClient(cookies map[string]string, host, proxy string, verbose bool) (*Client, error) {
@@ -95,7 +95,7 @@ func NewClient(cookies map[string]string, host, proxy string, verbose bool) (*Cl
 		tls_client.WithNotFollowRedirects(),
 	}
 
-	// 添加代理支持
+	// 新增代理支援
 	if proxy != "" {
 		options = append(options, tls_client.WithProxyUrl(proxy))
 	}
@@ -114,9 +114,9 @@ func NewClient(cookies map[string]string, host, proxy string, verbose bool) (*Cl
 		clientID: uuid.New().String(),
 	}
 
-	// 把传入的 Cookie 灌入 jar,后续请求自动携带。
+	// 把傳入的 Cookie 灌入 jar,後續請求自動攜帶。
 	if len(cookies) > 0 {
-		// 设置 Cookie 到所有可能的域名
+		// 設定 Cookie 到所有可能的域名
 		domains := []string{
 			"https://www.icloud.com",
 			"https://www.icloud.com.cn",
@@ -125,7 +125,7 @@ func NewClient(cookies map[string]string, host, proxy string, verbose bool) (*Cl
 			"https://" + c.Host,
 		}
 
-		// 添加 serviceURL 的域名（如果已知）
+		// 新增 serviceURL 的域名（如果已知）
 		if c.serviceURL != "" {
 			if u, err := url.Parse(c.serviceURL); err == nil {
 				domains = append(domains, u.Scheme+"://"+u.Host)
@@ -163,7 +163,7 @@ func normalizeHost(host string) string {
 	return "icloud.com"
 }
 
-// SetupURL 返回 iCloud setup 端点。
+// SetupURL 返回 iCloud setup 端點。
 func (c *Client) SetupURL() string {
 	if c.setupURL == "" {
 		suffix := "setup.icloud.com"
@@ -186,8 +186,8 @@ func (c *Client) log(format string, args ...any) {
 	}
 }
 
-// buildURL 给 URL 追加 clientBuildNumber / clientMasteringNumber / clientId / dsid 查询参数,
-// 这是 iCloud Web API 的强制要求。
+// buildURL 給 URL 追加 clientBuildNumber / clientMasteringNumber / clientId / dsid 查詢參數,
+// 這是 iCloud Web API 的強制要求。
 func (c *Client) buildURL(rawURL string) string {
 	parsed, err := url.Parse(rawURL)
 	if err != nil {
@@ -213,8 +213,8 @@ func (c *Client) buildURL(rawURL string) string {
 	return parsed.String()
 }
 
-// requestOrigin 根据实际请求端点选择 Origin。
-// Apple 可能把国区账号路由到全球服务，Origin 必须跟随目标域名而不是账号配置。
+// requestOrigin 根據實際請求端點選擇 Origin。
+// Apple 可能把國區帳號路由到全球服務，Origin 必須跟隨目標域名而不是帳號配置。
 func requestOrigin(rawURL string) string {
 	u, err := url.Parse(rawURL)
 	if err == nil {
@@ -229,7 +229,7 @@ func requestOrigin(rawURL string) string {
 	return "https://www.icloud.com"
 }
 
-// request 执行带重试的 HTTP 请求,返回响应体字符串。
+// request 執行帶重試的 HTTP 請求,返回回應體字串。
 func (c *Client) request(method, rawURL string, body any, timeout time.Duration, maxAttempts int) (string, error) {
 	if timeout == 0 {
 		timeout = RequestTimeout
@@ -280,8 +280,8 @@ func (c *Client) request(method, rawURL string, body any, timeout time.Duration,
 		req.Header.Set("sec-ch-ua-platform", `"Windows"`)
 		req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36")
 
-		// 手动添加 Cookie 头（确保跨域也能传递）
-		// 浏览器发送的 Cookie 值带双引号,iCloud 严格匹配
+		// 手動新增 Cookie 頭（確保跨域也能傳遞）
+		// 瀏覽器發送的 Cookie 值帶雙引號,iCloud 嚴格匹配
 		if len(c.Cookies) > 0 {
 			cookieParts := make([]string, 0, len(c.Cookies))
 			for k, v := range c.Cookies {
@@ -306,7 +306,7 @@ func (c *Client) request(method, rawURL string, body any, timeout time.Duration,
 
 		resp, err := c.httpc.Do(req)
 		if err != nil {
-			lastErr = fmt.Errorf("连接失败: %w", err)
+			lastErr = fmt.Errorf("連線失敗：%w", err)
 			if attempt < maxAttempts {
 				c.sleepRetry(attempt)
 				continue
@@ -317,7 +317,7 @@ func (c *Client) request(method, rawURL string, body any, timeout time.Duration,
 		text, _ := io.ReadAll(resp.Body)
 		resp.Body.Close()
 
-		// 从 Set-Cookie 响应头更新 Cookie（模拟浏览器行为,iCloud 会刷新 token）
+		// 從 Set-Cookie 回應頭更新 Cookie（模擬瀏覽器行為,iCloud 會刷新 token）
 		for _, sc := range resp.Cookies() {
 			if sc.Name != "" && sc.Value != "" {
 				c.Cookies[sc.Name] = sc.Value
@@ -330,7 +330,7 @@ func (c *Client) request(method, rawURL string, body any, timeout time.Duration,
 				snippet = snippet[:200]
 			}
 			lastErr = fmt.Errorf("HTTP %d: %s", resp.StatusCode, snippet)
-			// 401/403 说明 Cookie 失效,不重试直接返回。
+			// 401/403 說明 Cookie 失效,不重試直接返回。
 			if resp.StatusCode == 401 || resp.StatusCode == 403 {
 				return "", lastErr
 			}
@@ -346,7 +346,7 @@ func (c *Client) request(method, rawURL string, body any, timeout time.Duration,
 	if lastErr != nil {
 		return "", lastErr
 	}
-	return "", fmt.Errorf("未知错误")
+	return "", fmt.Errorf("未知錯誤")
 }
 
 func (c *Client) sleepRetry(attempt int) {
@@ -357,8 +357,8 @@ func (c *Client) sleepRetry(attempt int) {
 	time.Sleep(retryDelays[idx])
 }
 
-// validationURLs 返回会话校验端点。
-// 国区优先使用本地区域端点，并回退到全球端点以兼容 Apple 的路由调整。
+// validationURLs 返回工作階段校驗端點。
+// 國區優先使用本地區域端點，並回退到全球端點以兼容 Apple 的路由調整。
 func (c *Client) validationURLs() []string {
 	primary := c.SetupURL() + "/validate"
 	if c.Host != "icloud.com.cn" {
@@ -371,13 +371,13 @@ func (c *Client) validationURLs() []string {
 	return []string{primary, global}
 }
 
-// ValidateSession 校验 iCloud 会话,解析 HME 服务端点和账号身份。
+// ValidateSession 校驗 iCloud 工作階段,解析 HME 服務端點和帳號身份。
 //
-// 必须在调用 ListAliases / Generate / Reserve / Delete 之前完成。
-// 失败通常意味着 Cookie 过期或未订阅 iCloud+。
+// 必須在呼叫 ListAliases / Generate / Reserve / Delete 之前完成。
+// 失敗通常意味著 Cookie 過期或未訂閱 iCloud+。
 func (c *Client) ValidateSession() error {
-	c.log("校验 iCloud 会话...")
-	c.log("使用的 Cookie 数量: %d", len(c.Cookies))
+	c.log("校驗 iCloud 工作階段…")
+	c.log("使用的 Cookie 數量：%d", len(c.Cookies))
 	if len(c.Cookies) > 0 {
 		for k := range c.Cookies {
 			c.log("Cookie: %s", k)
@@ -394,29 +394,29 @@ func (c *Client) ValidateSession() error {
 			err = fmt.Errorf("invalid JSON response")
 		}
 		if err == nil && gjson.Get(candidate, "webservices.premiummailsettings.url").String() == "" {
-			err = fmt.Errorf("validate 响应缺少 Hide My Email 服务端点")
+			err = fmt.Errorf("validate 回應缺少 Hide My Email 服務端點")
 		}
 		if err == nil {
 			body = candidate
 			break
 		}
 		if i < len(validationURLs)-1 {
-			c.log("区域 validate 失败，改用全球端点: %v", err)
+			c.log("區域 validate 失敗，改用全球端點：%v", err)
 		}
 	}
 	if err != nil {
-		c.log("校验失败: %v", err)
+		c.log("校驗失敗：%v", err)
 		return err
 	}
 	data := gjson.Parse(body)
 	serviceURL := data.Get("webservices.premiummailsettings.url").String()
 	c.serviceURL = strings.TrimRight(serviceURL, "/")
-	// 剥离 :443 端口——tls-client cookie jar 按无端口 host 存储 cookie,带端口会丢失 cookie → 401
+	// 剝離 :443 連接埠——tls-client cookie jar 按無連接埠 host 儲存 cookie,帶連接埠會丟失 cookie → 401
 	if strings.HasSuffix(c.serviceURL, ":443") {
 		c.serviceURL = strings.TrimSuffix(c.serviceURL, ":443")
 	}
 
-	// 获取 serviceURL 后，再次设置 Cookie 到该域名
+	// 取得 serviceURL 後，再次設定 Cookie 到該域名
 	if len(c.Cookies) > 0 {
 		u, _ := url.Parse(c.serviceURL)
 		httpCookies := make([]*http.Cookie, 0, len(c.Cookies))
@@ -427,9 +427,9 @@ func (c *Client) ValidateSession() error {
 				Path:  "/",
 			})
 		}
-		c.httpc.GetCookies(u) // 触发 cookie jar 初始化
-		// 注意：需要手动设置 cookie，但 tls-client 的 CookieJar 不支持直接设置
-		// 我们需要在请求时手动添加 Cookie 头
+		c.httpc.GetCookies(u) // 觸發 cookie jar 初始化
+		// 注意：需要手動設定 cookie，但 tls-client 的 CookieJar 不支援直接設定
+		// 我們需要在請求時手動新增 Cookie 頭
 	}
 
 	dsInfo := data.Get("dsInfo")
@@ -450,11 +450,11 @@ func (c *Client) ValidateSession() error {
 		}
 	}
 	c.accountInfo = info
-	c.log("会话有效 → %s", nonEmpty(info.AppleID, "未知账号"))
+	c.log("工作階段有效 → %s", nonEmpty(info.AppleID, "未知帳號"))
 	return nil
 }
 
-// AccountInfo 返回已校验的账号身份(校验前为 nil)。
+// AccountInfo 返回已校驗的帳號身份(校驗前為 nil)。
 func (c *Client) AccountInfo() *AccountInfo { return c.accountInfo }
 
 func (c *Client) resolveService() error {
@@ -464,27 +464,27 @@ func (c *Client) resolveService() error {
 	return nil
 }
 
-// ListAliases 列出当前账号所有 Hide My Email 别名。
+// ListAliases 列出當前帳號所有 Hide My Email 別名。
 func (c *Client) ListAliases() ([]Alias, error) {
 	if err := c.resolveService(); err != nil {
 		return nil, err
 	}
-	c.log("获取别名列表...")
+	c.log("取得別名列表…")
 	body, err := c.request("GET", c.serviceURL+"/v2/hme/list", nil, 0, MaxRetries)
 	if err != nil {
 		return nil, err
 	}
 	aliases := parseAliasList(body)
-	c.log("共 %d 个别名", len(aliases))
+	c.log("共 %d 個別名", len(aliases))
 	return aliases, nil
 }
 
-// Generate 生成一个候选别名(尚未保留,需再调用 Reserve)。
+// Generate 產生一個候選別名(尚未保留,需再呼叫 Reserve)。
 func (c *Client) Generate() (string, error) {
 	if err := c.resolveService(); err != nil {
 		return "", err
 	}
-	c.log("生成候选别名...")
+	c.log("產生候選別名…")
 	body, err := c.request("POST", c.serviceURL+"/v1/hme/generate", map[string]string{"langCode": "en-us"}, 0, 2)
 	if err != nil {
 		return "", err
@@ -492,21 +492,21 @@ func (c *Client) Generate() (string, error) {
 	parsed := gjson.Parse(body)
 	if !parsed.Get("success").Bool() {
 		errMsg := parsed.Get("error.errorMessage").String()
-		return "", fmt.Errorf("生成失败: %s", nonEmpty(errMsg, "unknown"))
+		return "", fmt.Errorf("產生失敗：%s", nonEmpty(errMsg, "unknown"))
 	}
 	hme := parsed.Get("result.hme").String()
 	if hme == "" {
-		// 某些响应把 hme 包在嵌套对象里
+		// 某些回應把 hme 包在嵌套物件裡
 		hme = parsed.Get("result.hme.hme").String()
 		if hme == "" {
 			hme = parsed.Get("result.hme.email").String()
 		}
 	}
-	c.log("候选: %s", hme)
+	c.log("候選：%s", hme)
 	return hme, nil
 }
 
-// Reserve 保留/确认候选别名,使其正式生效。
+// Reserve 保留/確認候選別名,使其正式生效。
 func (c *Client) Reserve(hme, label string) (string, error) {
 	if err := c.resolveService(); err != nil {
 		return "", err
@@ -514,7 +514,7 @@ func (c *Client) Reserve(hme, label string) (string, error) {
 	if label == "" {
 		label = "Created " + time.Now().Format("2006-01-02 15:04")
 	}
-	c.log("保留别名 %s ...", hme)
+	c.log("保留別名 %s …", hme)
 	payload := map[string]string{
 		"hme":   hme,
 		"label": label,
@@ -527,7 +527,7 @@ func (c *Client) Reserve(hme, label string) (string, error) {
 	parsed := gjson.Parse(body)
 	if !parsed.Get("success").Bool() {
 		errMsg := parsed.Get("error.errorMessage").String()
-		return "", fmt.Errorf("保留失败: %s", nonEmpty(errMsg, "unknown"))
+		return "", fmt.Errorf("保留失敗：%s", nonEmpty(errMsg, "unknown"))
 	}
 	alias := hme
 	resultHme := parsed.Get("result.hme")
@@ -536,21 +536,21 @@ func (c *Client) Reserve(hme, label string) (string, error) {
 			alias = v
 		}
 	}
-	c.log("已保留: %s", alias)
+	c.log("已保留：%s", alias)
 	return alias, nil
 }
 
-// CreateResult 是 CreateAlias 的返回结果。
+// CreateResult 是 CreateAlias 的返回結果。
 type CreateResult struct {
 	Email     string `json:"email"`
 	Label     string `json:"label"`
 	CreatedAt string `json:"created_at"`
 }
 
-// CreateAlias 一步完成「生成 + 保留」,创建一个新别名。
+// CreateAlias 一步完成「產生 + 保留」,建立一個新別名。
 //
-// 由于 generate / reserve 偶发失败,内部会重试 maxRetries 次,
-// 每次重试会重置 serviceURL 强制重新校验会话。
+// 由於 generate / reserve 偶發失敗,內部會重試 maxRetries 次,
+// 每次重試會重置 serviceURL 強制重新校驗工作階段。
 func (c *Client) CreateAlias(label string, maxRetries int) (*CreateResult, error) {
 	if maxRetries <= 0 {
 		maxRetries = 5
@@ -560,11 +560,11 @@ func (c *Client) CreateAlias(label string, maxRetries int) (*CreateResult, error
 		if attempt > 0 {
 			c.serviceURL = ""
 			c.setupURL = ""
-			c.log("重试 %d/%d ...", attempt+1, maxRetries)
+			c.log("重試 %d/%d …", attempt+1, maxRetries)
 		}
 		hme, err := c.Generate()
 		if err != nil {
-			lastErr = "generate 失败: " + err.Error()
+			lastErr = "generate 失敗：" + err.Error()
 			c.log("%s", lastErr)
 			if attempt < maxRetries-1 {
 				time.Sleep(time.Second)
@@ -575,7 +575,7 @@ func (c *Client) CreateAlias(label string, maxRetries int) (*CreateResult, error
 		email, err := c.Reserve(hme, label)
 		if err != nil {
 			lastErr = err.Error()
-			c.log("reserve 失败: %s", lastErr)
+			c.log("reserve 失敗：%s", lastErr)
 			if attempt < maxRetries-1 {
 				time.Sleep(time.Second)
 				continue
@@ -589,17 +589,17 @@ func (c *Client) CreateAlias(label string, maxRetries int) (*CreateResult, error
 		}, nil
 	}
 	if lastErr != "" {
-		return nil, fmt.Errorf("创建别名失败: %s", lastErr)
+		return nil, fmt.Errorf("建立別名失敗：%s", lastErr)
 	}
-	return nil, fmt.Errorf("创建别名失败,已重试 %d 次", maxRetries)
+	return nil, fmt.Errorf("建立別名失敗，已重試 %d 次", maxRetries)
 }
 
-// DeactivateHME 停用别名(可恢复)。
+// DeactivateHME 停用別名(可恢復)。
 func (c *Client) DeactivateHME(anonymousID string) (bool, error) {
 	if err := c.resolveService(); err != nil {
 		return false, err
 	}
-	c.log("停用 %s ...", anonymousID)
+	c.log("停用 %s …", anonymousID)
 	payload := map[string]string{"anonymousId": anonymousID}
 	body, err := c.request("POST", c.serviceURL+"/v1/hme/deactivate", payload, 0, 2)
 	if err != nil {
@@ -608,12 +608,12 @@ func (c *Client) DeactivateHME(anonymousID string) (bool, error) {
 	return gjson.Get(body, "success").Bool(), nil
 }
 
-// ReactivateHME 激活已停用的别名。
+// ReactivateHME 激活已停用的別名。
 func (c *Client) ReactivateHME(anonymousID string) (bool, error) {
 	if err := c.resolveService(); err != nil {
 		return false, err
 	}
-	c.log("激活 %s ...", anonymousID)
+	c.log("啟用 %s …", anonymousID)
 	payload := map[string]string{"anonymousId": anonymousID}
 	body, err := c.request("POST", c.serviceURL+"/v1/hme/reactivate", payload, 0, 2)
 	if err != nil {
@@ -622,19 +622,19 @@ func (c *Client) ReactivateHME(anonymousID string) (bool, error) {
 	return gjson.Get(body, "success").Bool(), nil
 }
 
-// Delete 删除别名。若直接删除失败会先停用再删。
+// Delete 刪除別名。若直接刪除失敗會先停用再刪。
 func (c *Client) Delete(anonymousID string) error {
 	if err := c.resolveService(); err != nil {
 		return err
 	}
-	c.log("删除 %s ...", anonymousID)
+	c.log("刪除 %s …", anonymousID)
 	payload := map[string]string{"anonymousId": anonymousID}
 	doDelete := func() (string, error) {
 		return c.request("POST", c.serviceURL+"/v1/hme/delete", payload, 0, 2)
 	}
 	body, err := doDelete()
 	if err != nil || !gjson.Get(body, "success").Bool() {
-		c.log("直接删除失败,尝试先停用...")
+		c.log("直接刪除失敗,嘗試先停用...")
 		_, _ = c.request("POST", c.serviceURL+"/v1/hme/deactivate", payload, 0, 2)
 		body, err = doDelete()
 		if err != nil {
@@ -644,14 +644,14 @@ func (c *Client) Delete(anonymousID string) error {
 			return fmt.Errorf("%s", gjson.Get(body, "error.errorMessage").String())
 		}
 	}
-	c.log("已删除")
+	c.log("已刪除")
 	return nil
 }
 
-// ---- 别名列表解析 (对应 ICloudHME._parse_alias_list) ----
+// ---- 別名列表解析 (對應 ICloudHME._parse_alias_list) ----
 
-// parseAliasList 解析 iCloud 返回的别名列表 JSON。
-// 容错:优先取 result.hmeEmails,找不到则递归查找第一个对象数组。
+// parseAliasList 解析 iCloud 返回的別名列表 JSON。
+// 容錯:優先取 result.hmeEmails,找不到則遞迴查找第一個物件陣列。
 func parseAliasList(body string) []Alias {
 	if !gjson.Valid(body) {
 		return []Alias{}
@@ -700,7 +700,7 @@ func parseAliasList(body string) []Alias {
 		return true
 	})
 
-	// 活跃的排前面,再按邮箱字母序。
+	// 活躍的排前面,再按信箱字母序。
 	sort.SliceStable(aliases, func(i, j int) bool {
 		if aliases[i].Active != aliases[j].Active {
 			return aliases[i].Active
@@ -710,7 +710,7 @@ func parseAliasList(body string) []Alias {
 	return aliases
 }
 
-// findFirstDictArray 递归查找第一个「对象数组」。
+// findFirstDictArray 遞迴查找第一個「物件陣列」。
 func findFirstDictArray(v gjson.Result) gjson.Result {
 	if v.IsArray() {
 		if len(v.Array()) > 0 && v.Array()[0].IsObject() {

@@ -1,8 +1,8 @@
 /**
- * API 类型定义——与 internal/server 冻结契约保持一致。
+ * API 型別定義 — 與 internal/server 的凍結契約保持一致。
  */
 
-/** 统一响应包裹 */
+/** 統一回應包裹 */
 export interface ApiResponse<T> {
   success: boolean
   data?: T
@@ -10,7 +10,7 @@ export interface ApiResponse<T> {
   message?: string
 }
 
-/** 账号安全摘要(无秘密字段) */
+/** 帳號安全摘要（不含任何祕密欄位） */
 export interface AccountSummary {
   id: string
   name: string
@@ -36,7 +36,7 @@ export interface MailboxSummary {
   imap_port: number
 }
 
-/** HME 别名(iCloud 返回字段风格为 camelCase) */
+/** HME 別名（iCloud 回傳欄位為 camelCase） */
 export interface Alias {
   email: string
   anonymousId: string
@@ -45,7 +45,7 @@ export interface Alias {
   createdAt?: string
 }
 
-/** 邮件摘要 */
+/** 郵件摘要 */
 export interface InboxMessage {
   id: string
   from: string
@@ -60,7 +60,7 @@ export interface FullMessage extends InboxMessage {
   content_type: string
 }
 
-/** 收件箱查询结果 */
+/** 收件匣查詢結果 */
 export interface InboxResult {
   account_id: string
   alias?: string
@@ -69,7 +69,7 @@ export interface InboxResult {
   method: 'imap' | 'web_api'
 }
 
-/** 登录响应 */
+/** 登入回應 */
 export interface LoginResult {
   csrf_token: string
   expires_at: string

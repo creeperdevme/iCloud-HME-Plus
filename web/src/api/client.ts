@@ -1,22 +1,22 @@
 import type { ApiResponse } from './types'
 
-/** CSRF token,仅存 React 内存状态 */
+/** CSRF token，僅存於 React 記憶體狀態 */
 let csrfToken: string | null = null
 
-/** 全局 401 回调(由 AuthProvider 注册,避免循环 import) */
+/** 全域 401 回呼（由 AuthProvider 註冊，避免循環 import） */
 let unauthorizedHandler: (() => void) | null = null
 
-/** 注册全局 401 回调 */
+/** 註冊全域 401 回呼 */
 export function registerUnauthorizedHandler(handler: (() => void) | null): void {
   unauthorizedHandler = handler
 }
 
-/** 设置内存 CSRF token(由 AuthProvider 管理) */
+/** 設定記憶體中的 CSRF token（由 AuthProvider 管理） */
 export function setCSRFToken(token: string | null): void {
   csrfToken = token
 }
 
-/** ApiError 携带 HTTP 状态与稳定错误码 */
+/** ApiError 攜帶 HTTP 狀態與穩定錯誤碼 */
 export class ApiError extends Error {
   readonly status: number
   readonly code: string
@@ -34,17 +34,17 @@ interface RequestOptions extends Omit<RequestInit, 'body'> {
   signal?: AbortSignal
 }
 
-/** 管理员会话失效时服务端返回的稳定错误码(见 internal/server/auth.go) */
+/** 管理員工作階段失效時，伺服器端回傳的穩定錯誤碼（見 internal/server/auth.go） */
 const AUTH_REQUIRED = 'AUTH_REQUIRED'
 
 /**
- * 判断一次 401 响应是否代表"管理员会话失效"。
+ * 判斷一次 401 回應是否代表「管理員工作階段失效」。
  *
- * 只有服务端明确返回 AUTH_REQUIRED 才算会话过期。上游 iCloud 的业务错误
- * (UPSTREAM_UNAUTHORIZED / OTP_INVALID 等)不属于管理员会话问题,一旦把它们
- * 也当成会话过期,任何 iCloud Cookie 过期都会把管理员踢回登录页。
+ * 只有伺服器明確回傳 AUTH_REQUIRED 才算工作階段過期。上游 iCloud 的業務錯誤
+ * （UPSTREAM_UNAUTHORIZED / OTP_INVALID 等）不屬於管理員工作階段問題，一旦把
+ * 它們也當成過期，任何 iCloud Cookie 失效都會把管理員踢回登入頁。
  *
- * 响应体不是本服务的 JSON 时(例如反向代理直接拦截)按会话失效处理。
+ * 回應內容不是本服務的 JSON 時（例如反向代理直接攔截）視為工作階段失效。
  */
 function isSessionExpired(payload: ApiResponse<unknown> | null): boolean {
   if (payload === null) return true
@@ -54,9 +54,9 @@ function isSessionExpired(payload: ApiResponse<unknown> | null): boolean {
 /**
  * 唯一的 fetch 入口。
  *
- * 统一设置 Accept、JSON Content-Type 与 credentials: same-origin;
- * 非 GET/HEAD/OPTIONS 自动携带 X-CSRF-Token;
- * 仅当服务端明确返回 401/AUTH_REQUIRED 时触发 onUnauthorized 回调。
+ * 統一設定 Accept、JSON Content-Type 與 credentials: same-origin；
+ * 非 GET/HEAD/OPTIONS 自動攜帶 X-CSRF-Token；
+ * 僅當伺服器明確回傳 401／AUTH_REQUIRED 時觸發 onUnauthorized 回呼。
  */
 export async function request<T>(
   path: string,
@@ -87,7 +87,7 @@ export async function request<T>(
       credentials: 'same-origin',
     })
   } catch {
-    throw new ApiError(0, 'NETWORK_ERROR', '网络连接失败，请检查服务状态')
+    throw new ApiError(0, 'NETWORK_ERROR', '網路連線失敗，請檢查服務狀態')
   }
 
   let payload: ApiResponse<T> | null
@@ -103,14 +103,14 @@ export async function request<T>(
   }
 
   if (payload === null) {
-    throw new ApiError(resp.status, 'INVALID_RESPONSE', '网络连接失败，请检查服务状态')
+    throw new ApiError(resp.status, 'INVALID_RESPONSE', '網路連線失敗，請檢查服務狀態')
   }
 
   if (!resp.ok || payload.success === false) {
     throw new ApiError(
       resp.status,
       payload.code ?? 'INTERNAL_ERROR',
-      payload.message ?? '请求失败',
+      payload.message ?? '請求失敗',
     )
   }
   return payload.data as T

@@ -13,13 +13,13 @@ interface ConfirmDialogProps {
   busy?: boolean
 }
 
-/** 破坏性操作确认对话框:可要求输入精确匹配文本后才可确认 */
+/** 破壞性操作確認對話框：可要求輸入完全相符的文字後才可確認。 */
 export default function ConfirmDialog({
   title,
   message,
-  confirmLabel = '确认删除',
+  confirmLabel = '確認刪除',
   requireText,
-  requireLabel = '输入账号名称',
+  requireLabel = '輸入名稱以確認',
   open,
   onClose,
   onConfirm,
@@ -28,36 +28,31 @@ export default function ConfirmDialog({
   const [input, setInput] = useState('')
   const matched = !requireText || input === requireText
 
+  function handleClose() {
+    setInput('')
+    onClose()
+  }
+
   return (
-    <Dialog
-      title={title}
-      open={open}
-      onClose={() => {
-        setInput('')
-        onClose()
-      }}
-    >
-      <p>{message}</p>
+    <Dialog title={title} open={open} onClose={handleClose}>
+      <p className="card-sub" style={{ fontSize: 13.5, color: 'var(--text-2)' }}>
+        {message}
+      </p>
       {requireText && (
-        <div className="form-field">
+        <div className="form-field" style={{ marginTop: 16 }}>
           <label htmlFor="confirm-text">{requireLabel}</label>
           <input
             id="confirm-text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
             autoComplete="off"
+            spellCheck={false}
           />
+          <p className="hint">需完全相符：{requireText}</p>
         </div>
       )}
       <div className="form-actions">
-        <button
-          onClick={() => {
-            setInput('')
-            onClose()
-          }}
-        >
-          取消
-        </button>
+        <button onClick={handleClose}>取消</button>
         <button
           className="danger"
           disabled={!matched || busy}
@@ -66,7 +61,7 @@ export default function ConfirmDialog({
             onConfirm()
           }}
         >
-          {busy ? '处理中…' : confirmLabel}
+          {busy ? '處理中…' : confirmLabel}
         </button>
       </div>
     </Dialog>

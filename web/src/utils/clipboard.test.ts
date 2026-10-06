@@ -27,7 +27,7 @@ describe('copyText', () => {
     restoreProperty(document, 'execCommand', execCommandDescriptor)
   })
 
-  it('优先使用标准 Clipboard API', async () => {
+  it('優先使用標準 Clipboard API', async () => {
     const writeText = vi.fn().mockResolvedValue(undefined)
     Object.defineProperty(navigator, 'clipboard', {
       configurable: true,
@@ -44,7 +44,7 @@ describe('copyText', () => {
     expect(execCommand).not.toHaveBeenCalled()
   })
 
-  it('Clipboard API 被拒绝时回退到传统复制 API', async () => {
+  it('Clipboard API 被拒絕時回退到傳統複製 API', async () => {
     const writeText = vi.fn().mockRejectedValue(new Error('Permission denied'))
     Object.defineProperty(navigator, 'clipboard', {
       configurable: true,

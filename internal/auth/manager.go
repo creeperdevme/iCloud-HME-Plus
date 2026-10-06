@@ -1,7 +1,7 @@
-// Package auth 实现管理员密码校验、内存会话、CSRF 与登录限流。
+// Package auth 實現管理員密碼校驗、記憶體工作階段、CSRF 與登入限流。
 //
-// 不依赖 Gin:HTTP 中间件只负责 Cookie/Header 与 HTTP 状态映射。
-// 会话只存内存,进程重启即失效;session ID 与 CSRF 永不落盘或写日志。
+// 不依賴 Gin:HTTP 中介軟體只負責 Cookie/Header 與 HTTP 狀態映射。
+// 工作階段只存記憶體,行程重啟即失效;session ID 與 CSRF 永不落盤或寫日誌。
 package auth
 
 import (
@@ -19,13 +19,13 @@ import (
 )
 
 const (
-	// DefaultTTL 是默认会话有效期。
+	// DefaultTTL 是預設工作階段有效期。
 	DefaultTTL = 12 * time.Hour
-	// maxSessions 是同时有效会话上限,超出时淘汰最早过期的会话。
+	// maxSessions 是同時有效工作階段上限,超出時淘汰最早過期的工作階段。
 	maxSessions = 32
 )
 
-// Options 是 Manager 的构造选项。
+// Options 是 Manager 的構造選項。
 type Options struct {
 	Password string
 	TTL      time.Duration
@@ -33,20 +33,20 @@ type Options struct {
 	Random   io.Reader
 }
 
-// Session 是一次管理员会话的公开信息。
+// Session 是一次管理員工作階段的公開資訊。
 type Session struct {
 	CSRFToken string
 	ExpiresAt time.Time
 }
 
-// sessionRecord 是内存会话记录,map key 为 session ID 的 SHA-256。
+// sessionRecord 是記憶體工作階段記錄,map key 為 session ID 的 SHA-256。
 type sessionRecord struct {
 	csrfHash  [32]byte
 	csrfToken string
 	expiresAt time.Time
 }
 
-// Manager 管理管理员会话,线程安全。
+// Manager 管理管理員工作階段,執行緒安全。
 type Manager struct {
 	mu       sync.Mutex
 	salt     []byte
@@ -57,13 +57,13 @@ type Manager struct {
 	sessions map[[32]byte]sessionRecord
 }
 
-// NewManager 创建会话管理器。
+// NewManager 建立工作階段管理器。
 //
-// 拒绝空密码与短于 8 字符的密码;启动时用随机 salt + argon2.IDKey
-// 派生密码,登录时使用常量时间比较。
+// 拒絕空密碼與短於 8 字元的密碼;啟動時用隨機 salt + argon2.IDKey
+// 派生密碼,登入時使用常量時間比較。
 func NewManager(opts Options) (*Manager, error) {
 	if len(opts.Password) < 8 {
-		return nil, errors.New("管理员密码长度不能少于 8 个字符")
+		return nil, errors.New("管理員密碼長度不能少於 8 個字元")
 	}
 	if opts.TTL <= 0 {
 		opts.TTL = DefaultTTL
@@ -77,7 +77,7 @@ func NewManager(opts Options) (*Manager, error) {
 
 	salt := make([]byte, 16)
 	if _, err := io.ReadFull(opts.Random, salt); err != nil {
-		return nil, fmt.Errorf("生成密码 salt 失败: %w", err)
+		return nil, fmt.Errorf("產生密碼 salt 失敗：%w", err)
 	}
 	// argon2id: time=1, memory=64*1024 KiB, threads=4, keyLen=32
 	derived := argon2.IDKey([]byte(opts.Password), salt, 1, 64*1024, 4, 32)
@@ -92,7 +92,7 @@ func NewManager(opts Options) (*Manager, error) {
 	}, nil
 }
 
-// Login 校验管理员密码;成功时创建会话并返回 session ID。
+// Login 校驗管理員密碼;成功時建立工作階段並返回 session ID。
 func (m *Manager) Login(password string) (sessionID string, session Session, ok bool) {
 	derived := argon2.IDKey([]byte(password), m.salt, 1, 64*1024, 4, 32)
 	if subtle.ConstantTimeCompare(derived, m.password) != 1 {
@@ -116,12 +116,12 @@ func (m *Manager) Login(password string) (sessionID string, session Session, ok 
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.pruneLocked()
-	// 会话数达到上限时淘汰最早过期的会话,防止内存无界增长
+	// 工作階段數達到上限時淘汰最早過期的工作階段,防止記憶體無界增長
 	if len(m.sessions) >= maxSessions {
 		m.evictOldestLocked()
 	}
 	if _, exists := m.sessions[key]; exists {
-		// 碰撞概率可忽略;保守起见拒绝本次登录
+		// 碰撞概率可忽略;保守起見拒絕本次登入
 		return "", Session{}, false
 	}
 	m.sessions[key] = sessionRecord{
@@ -133,7 +133,7 @@ func (m *Manager) Login(password string) (sessionID string, session Session, ok 
 	return sessionID, Session{CSRFToken: token, ExpiresAt: expiresAt}, true
 }
 
-// Validate 校验会话是否有效;每次调用先清理过期会话。
+// Validate 校驗工作階段是否有效;每次呼叫先清理過期工作階段。
 func (m *Manager) Validate(sessionID string) (Session, bool) {
 	key := sha256.Sum256([]byte(sessionID))
 	m.mu.Lock()
@@ -146,7 +146,7 @@ func (m *Manager) Validate(sessionID string) (Session, bool) {
 	return Session{CSRFToken: rec.csrfToken, ExpiresAt: rec.expiresAt}, true
 }
 
-// ValidateCSRF 校验 CSRF token(常量时间比较)。
+// ValidateCSRF 校驗 CSRF token(常量時間比較)。
 func (m *Manager) ValidateCSRF(sessionID, token string) bool {
 	key := sha256.Sum256([]byte(sessionID))
 	m.mu.Lock()
@@ -160,7 +160,7 @@ func (m *Manager) ValidateCSRF(sessionID, token string) bool {
 	return subtle.ConstantTimeCompare(rec.csrfHash[:], want[:]) == 1
 }
 
-// Logout 删除会话。
+// Logout 刪除工作階段。
 func (m *Manager) Logout(sessionID string) {
 	key := sha256.Sum256([]byte(sessionID))
 	m.mu.Lock()
@@ -168,7 +168,7 @@ func (m *Manager) Logout(sessionID string) {
 	delete(m.sessions, key)
 }
 
-// pruneLocked 清理所有过期会话,须持锁调用。
+// pruneLocked 清理所有過期工作階段,須持鎖呼叫。
 func (m *Manager) pruneLocked() {
 	now := m.now()
 	for key, rec := range m.sessions {
@@ -178,7 +178,7 @@ func (m *Manager) pruneLocked() {
 	}
 }
 
-// evictOldestLocked 淘汰最早过期的会话,须持锁调用。
+// evictOldestLocked 淘汰最早過期的工作階段,須持鎖呼叫。
 func (m *Manager) evictOldestLocked() {
 	oldest := time.Time{}
 	var oldestKey [32]byte

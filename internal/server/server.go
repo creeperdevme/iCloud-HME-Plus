@@ -1,14 +1,14 @@
-// Package server 提供 HTTP API,基于 Gin。
+// Package server 提供 HTTP API,基於 Gin。
 //
-// 两个核心接口:
+// 兩個核心介面:
 //
-//	POST /api/create  — 在指定账号下创建一个 Hide My Email 别名
-//	GET  /api/inbox   — 读取指定账号(或指定别名)收到的邮件
+//	POST /api/create  — 在指定帳號下建立一個 Hide My Email 別名
+//	GET  /api/inbox   — 讀取指定帳號(或指定別名)收到的郵件
 //
-// 辅助接口(用于多账号管理):账号增删查、别名列表、设置 App 密码。
+// 輔助介面(用於多帳號管理):帳號增刪查、別名列表、設定 App 密碼。
 //
-// 安全模型:除 /api/auth/login 与 /api/auth/session 外,所有 /api 路由都需要
-// 管理员会话;非 GET/HEAD/OPTIONS 请求还需校验 CSRF。
+// 安全模型:除 /api/auth/login 與 /api/auth/session 外,所有 /api 路由都需要
+// 管理員工作階段;非 GET/HEAD/OPTIONS 請求還需校驗 CSRF。
 package server
 
 import (
@@ -25,7 +25,7 @@ import (
 	"icloud-hme/internal/webui"
 )
 
-// Config 是 Server 的启动配置。
+// Config 是 Server 的啟動配置。
 type Config struct {
 	Debug         bool
 	AdminPassword string
@@ -33,7 +33,7 @@ type Config struct {
 	SecureCookie  bool
 }
 
-// Server 封装 Gin 引擎、账号后端与认证。
+// Server 封裝 Gin 引擎、帳號後端與認證。
 type Server struct {
 	be      Backend
 	auth    *auth.Manager
@@ -42,7 +42,7 @@ type Server struct {
 	r       *gin.Engine
 }
 
-// New 创建 Server。mgr 为账号管理器,cfg 为安全配置。
+// New 建立 Server。mgr 為帳號管理器,cfg 為安全配置。
 func New(mgr *account.Manager, cfg Config) (*Server, error) {
 	if _, err := auth.NewManager(auth.Options{
 		Password: cfg.AdminPassword,
@@ -53,7 +53,7 @@ func New(mgr *account.Manager, cfg Config) (*Server, error) {
 	return newWithBackend(&managerBackend{mgr: mgr}, cfg), nil
 }
 
-// newWithBackend 创建 Server 并注入 Backend(测试使用内存 fake)。
+// newWithBackend 建立 Server 並注入 Backend(測試使用記憶體 fake)。
 func newWithBackend(be Backend, cfg Config) *Server {
 	if !cfg.Debug {
 		gin.SetMode(gin.ReleaseMode)
@@ -69,35 +69,35 @@ func newWithBackend(be Backend, cfg Config) *Server {
 	})
 	s.r = gin.New()
 	s.r.Use(gin.Logger(), gin.Recovery(), securityHeadersMiddleware())
-	// 不信任任意代理头,登录限流使用真实连接 IP
+	// 不信任任意代理頭,登入限流使用真實連線 IP
 	_ = s.r.SetTrustedProxies(nil)
 	s.register()
 	return s
 }
 
-// Run 启动 HTTP 服务。
+// Run 啟動 HTTP 服務。
 func (s *Server) Run(addr string) error {
 	return s.r.Run(addr)
 }
 
-// Handler 返回底层 gin 引擎(便于测试)。
+// Handler 返回底層 gin 引擎(便於測試)。
 func (s *Server) Handler() http.Handler { return s.r }
 
 func (s *Server) register() {
 	api := s.r.Group("/api")
 	api.Use(apiCacheControlMiddleware())
 	{
-		// ===== 认证(公开) =====
+		// ===== 認證(公開) =====
 		api.POST("/auth/login", s.handleLogin)
 		api.GET("/auth/session", s.handleSession)
 
-		// ===== 受保护路由:统一 requireSession =====
+		// ===== 受保護路由:統一 requireSession =====
 		authed := api.Group("")
 		authed.Use(requireSession(s.auth))
 		{
 			authed.POST("/auth/logout", csrfCheck(s.auth), s.handleLogout)
 
-			// ===== 账号管理 =====
+			// ===== 帳號管理 =====
 			authed.GET("/accounts", s.listAccountsHandler)
 			authed.POST("/accounts", csrfCheck(s.auth), s.addAccountHandler)
 			authed.PATCH("/accounts/:id", csrfCheck(s.auth), s.updateAccountHandler)
@@ -108,40 +108,40 @@ func (s *Server) register() {
 			authed.POST("/accounts/:id/login", csrfCheck(s.auth), s.loginAccountHandler)
 			authed.DELETE("/accounts/:id", csrfCheck(s.auth), s.removeAccountHandler)
 
-			// ===== 核心接口 1: 创建邮箱 =====
+			// ===== 核心介面 1: 建立信箱 =====
 			authed.POST("/create", csrfCheck(s.auth), s.createAliasHandler)
 
-			// ===== 核心接口 2: 读取邮件 =====
+			// ===== 核心介面 2: 讀取郵件 =====
 			authed.GET("/inbox", s.listInboxHandler)
 			authed.GET("/inbox/:message_id", s.getMessageHandler)
 			authed.DELETE("/inbox/:message_id", csrfCheck(s.auth), s.deleteMessageHandler)
 
-			// ===== 别名管理 =====
+			// ===== 別名管理 =====
 			authed.GET("/aliases", s.listAliasesHandler)
 			authed.POST("/aliases/:id/deactivate", csrfCheck(s.auth), s.deactivateAliasHandler)
 			authed.POST("/aliases/:id/reactivate", csrfCheck(s.auth), s.reactivateAliasHandler)
 			authed.DELETE("/aliases/:id", csrfCheck(s.auth), s.deleteAliasHandler)
 
-			// ===== 系统 =====
+			// ===== 系統 =====
 			authed.POST("/reload", csrfCheck(s.auth), s.reloadConfigHandler)
 		}
 	}
-	// API 404 返回 JSON,绝不让 NoRoute 把拼错的 API 路径变成 HTML
+	// API 404 返回 JSON,絕不讓 NoRoute 把拼錯的 API 路徑變成 HTML
 	s.r.NoRoute(func(c *gin.Context) {
 		if strings.HasPrefix(c.Request.URL.Path, "/api/") {
-			failCode(c, http.StatusNotFound, "VALIDATION_ERROR", "接口不存在")
+			failCode(c, http.StatusNotFound, "VALIDATION_ERROR", "介面不存在")
 			return
 		}
-		// 其余路径交给 webui(SPA fallback)
+		// 其餘路徑交給 webui(SPA fallback)
 		if c.Request.Method != http.MethodGet && c.Request.Method != http.MethodHead {
-			c.String(http.StatusMethodNotAllowed, "方法不允许")
+			c.String(http.StatusMethodNotAllowed, "不允許的方法")
 			return
 		}
 		webui.Handler(webuiFS).ServeHTTP(c.Writer, c.Request)
 	})
 }
 
-// webuiFS 是内嵌前端资源(可被测试替换)。
+// webuiFS 是內嵌前端資源(可被測試替換)。
 var webuiFS = func() fs.FS {
 	f, err := webui.Embedded()
 	if err != nil {
@@ -151,10 +151,10 @@ var webuiFS = func() fs.FS {
 }()
 
 // ====================================================================
-// 核心接口 1: 创建邮箱
+// 核心介面 1: 建立信箱
 //   POST /api/create
-//   body: {"account_id": "acc_xxx", "label": "可选标签"}
-//   返回: 新创建的 HME 邮箱地址
+//   body: {"account_id": "acc_xxx", "label": "可選標簽"}
+//   返回: 新建立的 HME 信箱位址
 // ====================================================================
 
 type createAliasReq struct {
@@ -165,11 +165,11 @@ type createAliasReq struct {
 func (s *Server) createAliasHandler(c *gin.Context) {
 	var req createAliasReq
 	if err := c.ShouldBindJSON(&req); err != nil || req.AccountID == "" {
-		failCode(c, http.StatusBadRequest, "VALIDATION_ERROR", "参数错误: account_id 必填")
+		failCode(c, http.StatusBadRequest, "VALIDATION_ERROR", "參數錯誤：account_id 必填")
 		return
 	}
 	if len([]rune(req.Label)) > 200 {
-		failCode(c, http.StatusBadRequest, "VALIDATION_ERROR", "参数错误: label 最长 200 字符")
+		failCode(c, http.StatusBadRequest, "VALIDATION_ERROR", "參數錯誤：label 最長 200 字元")
 		return
 	}
 
@@ -187,30 +187,30 @@ func (s *Server) createAliasHandler(c *gin.Context) {
 }
 
 // ====================================================================
-// 核心接口 2: 读取邮件
+// 核心介面 2: 讀取郵件
 //   GET /api/inbox?account_id=acc_xxx[&alias=xxx@icloud.com][&limit=20][&days=7]
 //
-//   - 不传 alias: 返回该账号收件箱最近邮件
-//   - 传 alias:   只返回发给该 HME 别名的邮件
+//   - 不傳 alias: 返回該帳號收件匣最近郵件
+//   - 傳 alias:   只返回發給該 HME 別名的郵件
 //
-//   认证优先级: IMAP (App Password) 优先 > Web API (Cookie) 回退
+//   認證優先級: IMAP (App Password) 優先 > Web API (Cookie) 回退
 // ====================================================================
 
 func (s *Server) listInboxHandler(c *gin.Context) {
 	accountID := c.Query("account_id")
 	if accountID == "" {
-		failCode(c, http.StatusBadRequest, "VALIDATION_ERROR", "参数缺失: account_id")
+		failCode(c, http.StatusBadRequest, "VALIDATION_ERROR", "缺少參數：account_id")
 		return
 	}
 	alias := strings.TrimSpace(c.Query("alias"))
 	limit, err := parseInboxInt(c.DefaultQuery("limit", "20"), 1, 100)
 	if err != nil {
-		failCode(c, http.StatusBadRequest, "VALIDATION_ERROR", "参数错误: limit 需为 1-100 的整数")
+		failCode(c, http.StatusBadRequest, "VALIDATION_ERROR", "參數錯誤：limit 需為 1-100 的整數")
 		return
 	}
 	days, err := parseInboxInt(c.DefaultQuery("days", "7"), 1, 90)
 	if err != nil {
-		failCode(c, http.StatusBadRequest, "VALIDATION_ERROR", "参数错误: days 需为 1-90 的整数")
+		failCode(c, http.StatusBadRequest, "VALIDATION_ERROR", "參數錯誤：days 需為 1-90 的整數")
 		return
 	}
 
@@ -231,7 +231,7 @@ func (s *Server) getMessageHandler(c *gin.Context) {
 	accountID := c.Query("account_id")
 	uid, err := strconv.ParseUint(c.Param("message_id"), 10, 32)
 	if accountID == "" || err != nil {
-		failCode(c, http.StatusBadRequest, "VALIDATION_ERROR", "account_id 或邮件 ID 无效")
+		failCode(c, http.StatusBadRequest, "VALIDATION_ERROR", "account_id 或郵件 ID 無效")
 		return
 	}
 	message, err := s.be.GetMessage(accountID, uint32(uid))
@@ -246,7 +246,7 @@ func (s *Server) deleteMessageHandler(c *gin.Context) {
 	accountID := c.Query("account_id")
 	uid, err := strconv.ParseUint(c.Param("message_id"), 10, 32)
 	if accountID == "" || err != nil {
-		failCode(c, http.StatusBadRequest, "VALIDATION_ERROR", "account_id 或邮件 ID 无效")
+		failCode(c, http.StatusBadRequest, "VALIDATION_ERROR", "account_id 或郵件 ID 無效")
 		return
 	}
 	if err := s.be.DeleteMessage(accountID, uint32(uid)); err != nil {
@@ -256,7 +256,7 @@ func (s *Server) deleteMessageHandler(c *gin.Context) {
 	ok(c, gin.H{"id": c.Param("message_id")})
 }
 
-// parseInboxInt 解析整数参数,非法或越界返回错误(不再静默变成 0)。
+// parseInboxInt 解析整數參數,非法或越界返回錯誤(不再靜默變成 0)。
 func parseInboxInt(raw string, min, max int) (int, error) {
 	v, err := strconv.Atoi(strings.TrimSpace(raw))
 	if err != nil {
@@ -269,13 +269,13 @@ func parseInboxInt(raw string, min, max int) (int, error) {
 }
 
 // ====================================================================
-// 辅助接口:别名
+// 輔助介面:別名
 // ====================================================================
 
 func (s *Server) listAliasesHandler(c *gin.Context) {
 	accountID := c.Query("account_id")
 	if accountID == "" {
-		failCode(c, http.StatusBadRequest, "VALIDATION_ERROR", "参数缺失: account_id")
+		failCode(c, http.StatusBadRequest, "VALIDATION_ERROR", "缺少參數：account_id")
 		return
 	}
 	aliases, err := s.be.ListAliases(accountID)
@@ -294,16 +294,16 @@ type aliasActionReq struct {
 	AccountID string `json:"account_id"`
 }
 
-// validateAliasAction 校验别名操作的匿名 ID 与请求体。
+// validateAliasAction 校驗別名操作的匿名 ID 與請求體。
 func validateAliasAction(c *gin.Context) (accountID, anonymousID string, valid bool) {
 	anonymousID = c.Param("id")
 	var req aliasActionReq
 	if err := c.ShouldBindJSON(&req); err != nil || req.AccountID == "" {
-		failCode(c, http.StatusBadRequest, "VALIDATION_ERROR", "参数错误: account_id 必填")
+		failCode(c, http.StatusBadRequest, "VALIDATION_ERROR", "參數錯誤：account_id 必填")
 		return "", "", false
 	}
 	if anonymousID == "" || len(anonymousID) > 256 {
-		failCode(c, http.StatusBadRequest, "VALIDATION_ERROR", "参数错误: anonymous id 无效")
+		failCode(c, http.StatusBadRequest, "VALIDATION_ERROR", "參數錯誤：anonymous id 無效")
 		return "", "", false
 	}
 	return req.AccountID, anonymousID, true
@@ -348,7 +348,7 @@ func (s *Server) deleteAliasHandler(c *gin.Context) {
 }
 
 // ====================================================================
-// 系统
+// 系統
 // ====================================================================
 
 func (s *Server) reloadConfigHandler(c *gin.Context) {
@@ -356,5 +356,5 @@ func (s *Server) reloadConfigHandler(c *gin.Context) {
 		backendFail(c, err)
 		return
 	}
-	ok(c, gin.H{"message": "配置已重新加载"})
+	ok(c, gin.H{"message": "設定已重新載入"})
 }

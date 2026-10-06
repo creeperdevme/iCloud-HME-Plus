@@ -12,12 +12,12 @@ func TestValidationURLs(t *testing.T) {
 		want []string
 	}{
 		{
-			name: "全球账号只用全球端点",
+			name: "全球帳號只用全球端點",
 			host: "icloud.com",
 			want: []string{"https://setup.icloud.com/setup/ws/1/validate"},
 		},
 		{
-			name: "国区账号回退全球端点",
+			name: "國區帳號回退全球端點",
 			host: "icloud.com.cn",
 			want: []string{
 				"https://setup.icloud.com.cn/setup/ws/1/validate",

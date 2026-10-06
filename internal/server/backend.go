@@ -1,6 +1,6 @@
-// Package server - 可替换业务接口与 Manager 适配器。
+// Package server - 可替換業務介面與 Manager 適配器。
 //
-// Backend 边界固定为高层业务动作,不把具体 *hme.Client 或 *mail.Client 暴露给 handler。
+// Backend 邊界固定為高層業務動作,不把具體 *hme.Client 或 *mail.Client 暴露給 handler。
 package server
 
 import (
@@ -14,7 +14,7 @@ import (
 	"icloud-hme/internal/mail"
 )
 
-// BackendError 是后端返回的稳定错误,携带 HTTP 状态码与稳定错误码。
+// BackendError 是後端返回的穩定錯誤,攜帶 HTTP 狀態碼與穩定錯誤碼。
 type BackendError struct {
 	Status  int
 	Code    string
@@ -23,7 +23,7 @@ type BackendError struct {
 
 func (e *BackendError) Error() string { return e.Message }
 
-// InboxQuery 是收件箱查询参数。
+// InboxQuery 是收件匣查詢參數。
 type InboxQuery struct {
 	AccountID string
 	Alias     string
@@ -31,7 +31,7 @@ type InboxQuery struct {
 	Days      int
 }
 
-// InboxResult 是收件箱查询结果。
+// InboxResult 是收件匣查詢結果。
 type InboxResult struct {
 	AccountID string         `json:"account_id"`
 	Alias     string         `json:"alias,omitempty"`
@@ -40,7 +40,7 @@ type InboxResult struct {
 	Method    string         `json:"method"`
 }
 
-// Backend 是可替换的业务接口;handler 只依赖本接口,测试使用内存 fake。
+// Backend 是可替換的業務介面;handler 只依賴本介面,測試使用記憶體 fake。
 type Backend interface {
 	ListAccounts() []account.Summary
 	AddAccount(account.AddAccountInput) (account.Summary, error)
@@ -61,17 +61,17 @@ type Backend interface {
 	Reload() error
 }
 
-// managerBackend 是生产 Backend,包装 *account.Manager。
+// managerBackend 是生產 Backend,包裝 *account.Manager。
 type managerBackend struct {
 	mgr *account.Manager
 }
 
-// ListAccounts 返回账号安全摘要列表。
+// ListAccounts 返回帳號安全摘要列表。
 func (b *managerBackend) ListAccounts() []account.Summary {
 	return b.mgr.ListSummaries()
 }
 
-// AddAccount 添加账号。
+// AddAccount 新增帳號。
 func (b *managerBackend) AddAccount(in account.AddAccountInput) (account.Summary, error) {
 	sum, err := b.mgr.AddAccountWithInput(in)
 	if err != nil {
@@ -80,7 +80,7 @@ func (b *managerBackend) AddAccount(in account.AddAccountInput) (account.Summary
 	return sum, nil
 }
 
-// UpdateAccount 编辑账号基本信息。
+// UpdateAccount 編輯帳號基本資訊。
 func (b *managerBackend) UpdateAccount(id string, in account.UpdateAccountInput) (account.Summary, error) {
 	sum, err := b.mgr.UpdateMetadata(id, in)
 	if err != nil {
@@ -89,7 +89,7 @@ func (b *managerBackend) UpdateAccount(id string, in account.UpdateAccountInput)
 	return sum, nil
 }
 
-// UpdateProxy 更新或清除账号代理。
+// UpdateProxy 更新或清除帳號代理。
 func (b *managerBackend) UpdateProxy(id, proxy string) (account.Summary, error) {
 	sum, err := b.mgr.UpdateProxy(id, proxy)
 	if err != nil {
@@ -98,7 +98,7 @@ func (b *managerBackend) UpdateProxy(id, proxy string) (account.Summary, error) 
 	return sum, nil
 }
 
-// UpdateCookies 更新账号 Cookie。cookies 为原始文本(Header String 或 JSON)。
+// UpdateCookies 更新帳號 Cookie。cookies 為原始文本(Header String 或 JSON)。
 func (b *managerBackend) UpdateCookies(id, cookies string) (account.Summary, error) {
 	parsed, err := account.ParseCookieInput(cookies)
 	if err != nil {
@@ -109,27 +109,27 @@ func (b *managerBackend) UpdateCookies(id, cookies string) (account.Summary, err
 	}
 	sum, ok := b.mgr.GetAccount(id)
 	if !ok {
-		return account.Summary{}, &BackendError{Status: http.StatusNotFound, Code: "ACCOUNT_NOT_FOUND", Message: "账号不存在"}
+		return account.Summary{}, &BackendError{Status: http.StatusNotFound, Code: "ACCOUNT_NOT_FOUND", Message: "帳號不存在"}
 	}
 	return sum.Summary(), nil
 }
 
-// SetAppPassword 设置 iCloud 邮箱与 App 专用密码并测试 IMAP 连接。
+// SetAppPassword 設定 iCloud 信箱與 App 專用密碼並測試 IMAP 連線。
 func (b *managerBackend) SetAppPassword(id, icloudEmail, appPassword string) (account.Summary, error) {
 	if err := b.mgr.SetAppPassword(id, icloudEmail, appPassword); err != nil {
 		msg := err.Error()
-		if strings.Contains(msg, "账号不存在") {
-			return account.Summary{}, &BackendError{Status: http.StatusNotFound, Code: "ACCOUNT_NOT_FOUND", Message: "账号不存在"}
+		if strings.Contains(msg, "帳號不存在") {
+			return account.Summary{}, &BackendError{Status: http.StatusNotFound, Code: "ACCOUNT_NOT_FOUND", Message: "帳號不存在"}
 		}
-		if strings.Contains(msg, "不能为空") {
+		if strings.Contains(msg, "不能為空") {
 			return account.Summary{}, &BackendError{Status: http.StatusBadRequest, Code: "VALIDATION_ERROR", Message: msg}
 		}
-		// IMAP 连接失败属于上游错误,不拼接详细错误
-		return account.Summary{}, &BackendError{Status: http.StatusBadGateway, Code: "UPSTREAM_FAILURE", Message: "IMAP 验证失败,请检查邮箱与 App 专用密码"}
+		// IMAP 連線失敗屬於上游錯誤,不拼接詳細錯誤
+		return account.Summary{}, &BackendError{Status: http.StatusBadGateway, Code: "UPSTREAM_FAILURE", Message: "IMAP 驗證失敗，請檢查信箱與 App 專用密碼"}
 	}
 	sum, ok := b.mgr.GetAccount(id)
 	if !ok {
-		return account.Summary{}, &BackendError{Status: http.StatusNotFound, Code: "ACCOUNT_NOT_FOUND", Message: "账号不存在"}
+		return account.Summary{}, &BackendError{Status: http.StatusNotFound, Code: "ACCOUNT_NOT_FOUND", Message: "帳號不存在"}
 	}
 	return sum.Summary(), nil
 }
@@ -137,19 +137,19 @@ func (b *managerBackend) SetAppPassword(id, icloudEmail, appPassword string) (ac
 // SetMailbox configures and verifies an external IMAP mailbox.
 func (b *managerBackend) SetMailbox(id string, config account.MailboxConfig) (account.Summary, error) {
 	if err := b.mgr.SetMailbox(id, config); err != nil {
-		if strings.Contains(err.Error(), "账号不存在") {
-			return account.Summary{}, &BackendError{Status: http.StatusNotFound, Code: "ACCOUNT_NOT_FOUND", Message: "账号不存在"}
+		if strings.Contains(err.Error(), "帳號不存在") {
+			return account.Summary{}, &BackendError{Status: http.StatusNotFound, Code: "ACCOUNT_NOT_FOUND", Message: "帳號不存在"}
 		}
-		return account.Summary{}, &BackendError{Status: http.StatusBadGateway, Code: "UPSTREAM_FAILURE", Message: "收件邮箱验证失败,请检查邮箱、授权码和 IMAP 配置"}
+		return account.Summary{}, &BackendError{Status: http.StatusBadGateway, Code: "UPSTREAM_FAILURE", Message: "收件信箱驗證失敗，請檢查信箱、授權碼與 IMAP 設定"}
 	}
 	sum, ok := b.mgr.GetAccount(id)
 	if !ok {
-		return account.Summary{}, &BackendError{Status: http.StatusNotFound, Code: "ACCOUNT_NOT_FOUND", Message: "账号不存在"}
+		return account.Summary{}, &BackendError{Status: http.StatusNotFound, Code: "ACCOUNT_NOT_FOUND", Message: "帳號不存在"}
 	}
 	return sum.Summary(), nil
 }
 
-// LoginAccount 使用 iCloud 密码登录账号,成功只返回 Summary,绝不返回 Cookies。
+// LoginAccount 使用 iCloud 密碼登入帳號,成功只返回 Summary,絕不返回 Cookies。
 func (b *managerBackend) LoginAccount(id, password, otpCode string) (account.Summary, error) {
 	var otpProvider hme.OTPProvider
 	if otpCode != "" {
@@ -164,39 +164,41 @@ func (b *managerBackend) LoginAccount(id, password, otpCode string) (account.Sum
 	_ = client
 	sum, ok := b.mgr.GetAccount(id)
 	if !ok {
-		return account.Summary{}, &BackendError{Status: http.StatusNotFound, Code: "ACCOUNT_NOT_FOUND", Message: "账号不存在"}
+		return account.Summary{}, &BackendError{Status: http.StatusNotFound, Code: "ACCOUNT_NOT_FOUND", Message: "帳號不存在"}
 	}
 	return sum.Summary(), nil
 }
 
-// classifyLoginErr 把 iCloud 登录错误映射为稳定错误。
+// classifyLoginErr 把 iCloud 登入錯誤映射為穩定錯誤。
 //
-// 注意:这里绝不能返回 HTTP 401。401 是本服务"管理员会话失效"的专用信号,
-// 前端 fetch 封装收到 401 会清空会话并跳回登录页。iCloud 账号登录时输错
-// OTP/密码属于业务错误,必须用其它状态码表达。
+// 注意:這裡絕不能返回 HTTP 401。401 是本服務"管理員工作階段失效"的專用信號,
+// 前端 fetch 封裝收到 401 會清空工作階段並跳回登入頁。iCloud 帳號登入時輸錯
+// OTP/密碼屬於業務錯誤,必須用其它狀態碼表達。
 func classifyLoginErr(err error) *BackendError {
 	msg := err.Error()
 	if strings.Contains(msg, "需要提供 OTP") {
-		return &BackendError{Status: http.StatusConflict, Code: "OTP_REQUIRED", Message: "需要提供 OTP 验证码"}
+		return &BackendError{Status: http.StatusConflict, Code: "OTP_REQUIRED", Message: "需要提供 OTP 驗證碼"}
 	}
-	if strings.Contains(msg, "2FA 验证失败") {
-		return &BackendError{Status: http.StatusBadRequest, Code: "OTP_INVALID", Message: "OTP 验证码错误"}
+	// 產生端（internal/hme/auth.go）已改為繁體「2FA 驗證失敗」；
+	// 同時保留簡體比對，避免舊版或上游文字漏判。
+	if strings.Contains(msg, "2FA 驗證失敗") || strings.Contains(msg, "2FA 验证失败") {
+		return &BackendError{Status: http.StatusBadRequest, Code: "OTP_INVALID", Message: "OTP 驗證碼錯誤"}
 	}
-	if strings.Contains(msg, "账号不存在") {
-		return &BackendError{Status: http.StatusNotFound, Code: "ACCOUNT_NOT_FOUND", Message: "账号不存在"}
+	if strings.Contains(msg, "帳號不存在") {
+		return &BackendError{Status: http.StatusNotFound, Code: "ACCOUNT_NOT_FOUND", Message: "帳號不存在"}
 	}
 	if isSessionError(msg) {
 		return upstreamUnauthorizedErr()
 	}
-	return &BackendError{Status: http.StatusBadGateway, Code: "UPSTREAM_FAILURE", Message: "iCloud 登录失败,请稍后重试"}
+	return &BackendError{Status: http.StatusBadGateway, Code: "UPSTREAM_FAILURE", Message: "iCloud 登入失敗，請稍後再試"}
 }
 
-// RemoveAccount 删除账号。
+// RemoveAccount 刪除帳號。
 func (b *managerBackend) RemoveAccount(id string) bool {
 	return b.mgr.RemoveAccount(id)
 }
 
-// CreateAlias 创建 HME 别名。
+// CreateAlias 建立 HME 別名。
 func (b *managerBackend) CreateAlias(accountID, label string) (*hme.CreateResult, error) {
 	client, err := b.mgr.HMEClient(accountID, false)
 	if err != nil {
@@ -205,12 +207,12 @@ func (b *managerBackend) CreateAlias(accountID, label string) (*hme.CreateResult
 	result, err := client.CreateAlias(label, 5)
 	_ = b.mgr.SaveCookies(accountID, client.Cookies)
 	if err != nil {
-		return nil, classifyUpstreamErr("创建邮箱失败", err)
+		return nil, classifyUpstreamErr("建立信箱失敗", err)
 	}
 	return result, nil
 }
 
-// ListAliases 列出账号的 HME 别名。
+// ListAliases 列出帳號的 HME 別名。
 func (b *managerBackend) ListAliases(accountID string) ([]hme.Alias, error) {
 	client, err := b.mgr.HMEClient(accountID, false)
 	if err != nil {
@@ -219,12 +221,12 @@ func (b *managerBackend) ListAliases(accountID string) ([]hme.Alias, error) {
 	aliases, err := client.ListAliases()
 	_ = b.mgr.SaveCookies(accountID, client.Cookies)
 	if err != nil {
-		return nil, classifyUpstreamErr("获取别名列表失败", err)
+		return nil, classifyUpstreamErr("取得別名列表失敗", err)
 	}
 	return aliases, nil
 }
 
-// SetAliasActive 停用或激活别名。
+// SetAliasActive 停用或激活別名。
 func (b *managerBackend) SetAliasActive(accountID, anonymousID string, active bool) (bool, error) {
 	client, err := b.mgr.HMEClient(accountID, false)
 	if err != nil {
@@ -238,18 +240,18 @@ func (b *managerBackend) SetAliasActive(accountID, anonymousID string, active bo
 	}
 	_ = b.mgr.SaveCookies(accountID, client.Cookies)
 	if err != nil {
-		msg := "操作失败"
+		msg := "操作失敗"
 		if !active {
-			msg = "停用失败"
+			msg = "停用失敗"
 		} else {
-			msg = "激活失败"
+			msg = "啟用失敗"
 		}
 		return false, classifyUpstreamErr(msg, err)
 	}
 	return success, nil
 }
 
-// DeleteAlias 删除别名。
+// DeleteAlias 刪除別名。
 func (b *managerBackend) DeleteAlias(accountID, anonymousID string) error {
 	client, err := b.mgr.HMEClient(accountID, false)
 	if err != nil {
@@ -258,14 +260,14 @@ func (b *managerBackend) DeleteAlias(accountID, anonymousID string) error {
 	err = client.Delete(anonymousID)
 	_ = b.mgr.SaveCookies(accountID, client.Cookies)
 	if err != nil {
-		return classifyUpstreamErr("删除失败", err)
+		return classifyUpstreamErr("刪除失敗", err)
 	}
 	return nil
 }
 
-// ListInbox 读取收件箱摘要:IMAP (App Password) 优先,Web API (Cookie) 回退。
+// ListInbox 讀取收件匣摘要:IMAP (App Password) 優先,Web API (Cookie) 回退。
 func (b *managerBackend) ListInbox(q InboxQuery) (InboxResult, error) {
-	// 优先使用 IMAP 连接池 (App Password 认证,复用长连接)
+	// 優先使用 IMAP 連線池 (App Password 認證,複用長連線)
 	var imapMessages []mail.Message
 	poolErr := b.mgr.WithMailClient(q.AccountID, func(mc *mail.Client) error {
 		var e error
@@ -285,24 +287,24 @@ func (b *managerBackend) ListInbox(q InboxQuery) (InboxResult, error) {
 			Method:    "imap",
 		}, nil
 	}
-	// IMAP 失败,继续尝试 Web API
+	// IMAP 失敗,繼續嘗試 Web API
 
-	// 回退到 Web API (Cookie 认证,无需 App Password)
+	// 回退到 Web API (Cookie 認證,無需 App Password)
 	wmc, err := b.mgr.WebMailClient(q.AccountID)
 	if err != nil {
-		return InboxResult{}, &BackendError{Status: http.StatusBadRequest, Code: "VALIDATION_ERROR", Message: "无可用邮件客户端: 需要 App Password 或 Cookie"}
+		return InboxResult{}, &BackendError{Status: http.StatusBadRequest, Code: "VALIDATION_ERROR", Message: "沒有可用的郵件用戶端：需要 App 專用密碼或 Cookie"}
 	}
 
 	if q.Alias != "" {
 		messages, err := wmc.FindByAlias(q.Alias, q.Limit)
 		if err != nil {
-			return InboxResult{}, &BackendError{Status: http.StatusBadGateway, Code: "UPSTREAM_FAILURE", Message: "读取邮件失败"}
+			return InboxResult{}, &BackendError{Status: http.StatusBadGateway, Code: "UPSTREAM_FAILURE", Message: "讀取郵件失敗"}
 		}
 		return InboxResult{AccountID: q.AccountID, Alias: q.Alias, Count: len(messages), Messages: messages, Method: "web_api"}, nil
 	}
 	messages, err := wmc.ListInbox(q.Limit)
 	if err != nil {
-		return InboxResult{}, &BackendError{Status: http.StatusBadGateway, Code: "UPSTREAM_FAILURE", Message: "读取邮件失败"}
+		return InboxResult{}, &BackendError{Status: http.StatusBadGateway, Code: "UPSTREAM_FAILURE", Message: "讀取郵件失敗"}
 	}
 	return InboxResult{AccountID: q.AccountID, Count: len(messages), Messages: messages, Method: "web_api"}, nil
 }
@@ -313,12 +315,12 @@ func (b *managerBackend) GetMessage(accountID string, uid uint32) (*mail.FullMes
 		return nil, mapAccountErr(err)
 	}
 	if err := mc.Connect(); err != nil {
-		return nil, &BackendError{Status: http.StatusBadGateway, Code: "UPSTREAM_FAILURE", Message: "读取邮件失败"}
+		return nil, &BackendError{Status: http.StatusBadGateway, Code: "UPSTREAM_FAILURE", Message: "讀取郵件失敗"}
 	}
 	defer mc.Disconnect()
 	message, err := mc.GetFull(uid)
 	if err != nil {
-		return nil, &BackendError{Status: http.StatusBadGateway, Code: "UPSTREAM_FAILURE", Message: "读取邮件详情失败"}
+		return nil, &BackendError{Status: http.StatusBadGateway, Code: "UPSTREAM_FAILURE", Message: "讀取郵件內容失敗"}
 	}
 	return message, nil
 }
@@ -329,51 +331,54 @@ func (b *managerBackend) DeleteMessage(accountID string, uid uint32) error {
 		return mapAccountErr(err)
 	}
 	if err := mc.Connect(); err != nil {
-		return &BackendError{Status: http.StatusBadGateway, Code: "UPSTREAM_FAILURE", Message: "删除邮件失败"}
+		return &BackendError{Status: http.StatusBadGateway, Code: "UPSTREAM_FAILURE", Message: "刪除郵件失敗"}
 	}
 	defer mc.Disconnect()
 	if err := mc.Delete(uid); err != nil {
-		return &BackendError{Status: http.StatusBadGateway, Code: "UPSTREAM_FAILURE", Message: "删除邮件失败"}
+		return &BackendError{Status: http.StatusBadGateway, Code: "UPSTREAM_FAILURE", Message: "刪除郵件失敗"}
 	}
 	return nil
 }
 
-// Reload 重新加载配置。
+// Reload 重新載入配置。
 func (b *managerBackend) Reload() error {
 	if err := b.mgr.Reload(); err != nil {
-		return &BackendError{Status: http.StatusInternalServerError, Code: "INTERNAL_ERROR", Message: "重新加载配置失败"}
+		return &BackendError{Status: http.StatusInternalServerError, Code: "INTERNAL_ERROR", Message: "重新載入設定失敗"}
 	}
 	return nil
 }
 
-// mapAccountErr 把账号管理器错误映射为稳定错误。
+// mapAccountErr 把帳號管理器錯誤映射為穩定錯誤。
 func mapAccountErr(err error) *BackendError {
 	msg := err.Error()
-	if strings.Contains(msg, "账号不存在") {
-		return &BackendError{Status: http.StatusNotFound, Code: "ACCOUNT_NOT_FOUND", Message: "账号不存在"}
+	if strings.Contains(msg, "帳號不存在") {
+		return &BackendError{Status: http.StatusNotFound, Code: "ACCOUNT_NOT_FOUND", Message: "帳號不存在"}
 	}
-	if strings.Contains(msg, "Cookie") && strings.Contains(msg, "未配置") {
-		return &BackendError{Status: http.StatusBadRequest, Code: "VALIDATION_ERROR", Message: "账号未配置 Cookie"}
+	// 產生端（internal/account/manager.go）已改為繁體「尚未設定 Cookie」，
+	// 因此三種寫法都要比對，否則會退化成把內部錯誤原文直接回給前端。
+	if strings.Contains(msg, "Cookie") &&
+		(strings.Contains(msg, "尚未設定") || strings.Contains(msg, "未配置") || strings.Contains(msg, "未設置")) {
+		return &BackendError{Status: http.StatusBadRequest, Code: "VALIDATION_ERROR", Message: "帳號尚未設定 Cookie"}
 	}
 	return &BackendError{Status: http.StatusBadRequest, Code: "VALIDATION_ERROR", Message: msg}
 }
 
-// upstreamUnauthorizedErr 表示"上游 iCloud 会话失效"。
+// upstreamUnauthorizedErr 表示"上游 iCloud 工作階段失效"。
 //
-// 关键约定:上游鉴权失败必须返回 502,而不是 401。
-// 本服务的 401 只表示管理员会话失效(见 internal/server/auth.go 的
-// requireSession/handleSession),前端 api/client.ts 一旦收到 401 就会
-// 清空 CSRF token 并把界面切回登录页。若上游错误也用 401,那么任何
-// iCloud Cookie 过期(约 24 小时)、或输错一次 OTP,都会把管理员踢出面板。
+// 關鍵約定:上游鑑權失敗必須返回 502,而不是 401。
+// 本服務的 401 只表示管理員工作階段失效(見 internal/server/auth.go 的
+// requireSession/handleSession),前端 api/client.ts 一旦收到 401 就會
+// 清空 CSRF token 並把介面切回登入頁。若上游錯誤也用 401,那麼任何
+// iCloud Cookie 過期(約 24 小時)、或輸錯一次 OTP,都會把管理員踢出面板。
 func upstreamUnauthorizedErr() *BackendError {
 	return &BackendError{
 		Status:  http.StatusBadGateway,
 		Code:    "UPSTREAM_UNAUTHORIZED",
-		Message: "iCloud 会话失效,请更新 Cookie",
+		Message: "iCloud 工作階段已失效，請更新 Cookie",
 	}
 }
 
-// classifyUpstreamErr 把上游 (iCloud) 错误映射为稳定错误,不拼接上游响应体。
+// classifyUpstreamErr 把上游 (iCloud) 錯誤映射為穩定錯誤,不拼接上游回應體。
 func classifyUpstreamErr(fixedMsg string, err error) *BackendError {
 	if err == nil {
 		return nil
@@ -384,25 +389,30 @@ func classifyUpstreamErr(fixedMsg string, err error) *BackendError {
 	return &BackendError{Status: http.StatusBadGateway, Code: "UPSTREAM_FAILURE", Message: fixedMsg}
 }
 
-// isSessionError 判断错误是否由会话失效引起。
+// isSessionError 判斷錯誤是否由工作階段失效引起。
+//
+// 「認證」與「工作階段校驗失敗」是上游 iCloud 直接回傳的簡體字串，我們無法改寫，
+// 因此同時保留簡體與繁體兩種比對；其餘字串皆由本專案產生（已全面轉為繁體），
+// 比對條件也一併使用繁體。
 func isSessionError(msg string) bool {
 	m := strings.ToLower(msg)
 	return strings.Contains(m, "401") || strings.Contains(m, "403") ||
 		strings.Contains(m, "session") || strings.Contains(m, "cookie") ||
-		strings.Contains(m, "unauthorized") || strings.Contains(m, "认证") ||
-		strings.Contains(m, "会话校验失败")
+		strings.Contains(m, "unauthorized") ||
+		strings.Contains(m, "认证") || strings.Contains(m, "認證") ||
+		strings.Contains(m, "会话校验失败") || strings.Contains(m, "工作階段校驗失敗")
 }
 
-// asBackendError 提取 BackendError,非 BackendError 统一为 INTERNAL_ERROR。
+// asBackendError 提取 BackendError,非 BackendError 統一為 INTERNAL_ERROR。
 func asBackendError(err error) *BackendError {
 	var be *BackendError
 	if errors.As(err, &be) {
 		return be
 	}
-	return &BackendError{Status: http.StatusInternalServerError, Code: "INTERNAL_ERROR", Message: "内部错误"}
+	return &BackendError{Status: http.StatusInternalServerError, Code: "INTERNAL_ERROR", Message: "內部錯誤"}
 }
 
-// cookieInputToJSON 把 handler 解析出的 map 转回 JSON 文本,交给 ParseCookieInput。
+// cookieInputToJSON 把 handler 解析出的 map 轉回 JSON 文本,交給 ParseCookieInput。
 func cookieInputToJSON(cookies map[string]string) string {
 	raw, err := json.Marshal(cookies)
 	if err != nil {

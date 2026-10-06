@@ -9,11 +9,17 @@ interface ProxyDialogProps {
   onSaved: () => void
 }
 
-/** 更新代理对话框:从不回显当前值 */
+/** 設定帳號專用代理；基於安全考量不回首目前值。 */
 export default function ProxyDialog({ accountId, open, onClose, onSaved }: ProxyDialogProps) {
   const [proxy, setProxy] = useState('')
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
+
+  function handleClose() {
+    setProxy('')
+    setError('')
+    onClose()
+  }
 
   async function handleSubmit() {
     if (submitting) return
@@ -27,7 +33,7 @@ export default function ProxyDialog({ accountId, open, onClose, onSaved }: Proxy
       setProxy('')
       onSaved()
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : '网络连接失败，请检查服务状态')
+      setError(err instanceof ApiError ? err.message : '網路連線失敗，請檢查服務狀態')
     } finally {
       setSubmitting(false)
     }
@@ -35,21 +41,18 @@ export default function ProxyDialog({ accountId, open, onClose, onSaved }: Proxy
 
   return (
     <Dialog
-      title="设置代理"
+      title="設定代理"
+      description="支援 http、https 與 socks5。留空送出即可清除代理。"
       open={open}
-      onClose={() => {
-        setProxy('')
-        setError('')
-        onClose()
-      }}
+      onClose={handleClose}
     >
       {error && (
-        <div className="alert-error" role="alert">
+        <div className="alert alert-error" role="alert">
           {error}
         </div>
       )}
       <div className="form-field">
-        <label htmlFor="proxy-input">代理地址</label>
+        <label htmlFor="proxy-input">代理位址</label>
         <input
           id="proxy-input"
           type="text"
@@ -57,13 +60,14 @@ export default function ProxyDialog({ accountId, open, onClose, onSaved }: Proxy
           onChange={(e) => setProxy(e.target.value)}
           placeholder="http://user:pass@host:port"
           autoComplete="off"
+          spellCheck={false}
         />
-        <p className="hint">留空并保存可清除代理；出于安全考虑不回显当前值。</p>
+        <p className="hint">基於安全考量，目前的值不會回顯；留空並儲存即清除。</p>
       </div>
       <div className="form-actions">
-        <button onClick={onClose}>取消</button>
+        <button onClick={handleClose}>取消</button>
         <button className="primary" onClick={() => void handleSubmit()} disabled={submitting}>
-          {submitting ? '保存中…' : '保存'}
+          {submitting ? '儲存中…' : '儲存'}
         </button>
       </div>
     </Dialog>

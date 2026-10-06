@@ -10,13 +10,16 @@ import { server } from '../test/server'
 import LoginPage from '../pages/LoginPage'
 import { ApiError, request, registerUnauthorizedHandler, setCSRFToken } from '../api/client'
 
+/** 登入頁標題（LoginPage 的 <h1>）。 */
+const APP_TITLE = 'iCloud Hide My Email Dashboard'
+
 function ProtectedProbe() {
   const { status } = useAuth()
   if (status !== 'authenticated') return <p>loading…</p>
-  return <p data-testid="protected">已登录页面</p>
+  return <p data-testid="protected">已登入頁面</p>
 }
 
-/** 模拟 App.tsx 的认证分支逻辑 */
+/** 模擬 App.tsx 的認證分支邏輯 */
 function TestApp({ children }: { children?: ReactNode }) {
   const { status } = useAuth()
   if (status === 'checking') return <p>loading…</p>
@@ -37,6 +40,13 @@ function renderApp(initialPath = '/accounts') {
   )
 }
 
+/** 未登入時 /api/auth/session 的 401 回應（與 internal/server 契約一致）。 */
+const sessionExpired = () =>
+  HttpResponse.json(
+    { success: false, code: 'AUTH_REQUIRED', message: '請先登入' },
+    { status: 401 },
+  )
+
 describe('AuthProvider + LoginPage', () => {
   beforeEach(() => {
     setCSRFToken(null)
@@ -44,7 +54,7 @@ describe('AuthProvider + LoginPage', () => {
     server.resetHandlers()
   })
 
-  it('首次访问显示 loading,会话校验通过后进入受保护页', async () => {
+  it('首次訪問顯示 loading,工作階段校驗通過後進入受保護頁', async () => {
     server.use(
       http.get('/api/auth/session', () =>
         HttpResponse.json({
@@ -61,27 +71,18 @@ describe('AuthProvider + LoginPage', () => {
     expect(await screen.findByTestId('protected')).toBeInTheDocument()
   })
 
-  it('会话无效(401)跳转登录页', async () => {
-    server.use(
-      http.get('/api/auth/session', () =>
-        HttpResponse.json(
-          { success: false, code: 'AUTH_REQUIRED', message: '请先登录' },
-          { status: 401 },
-        ),
-      ),
-    )
+  it('工作階段無效(401)顯示登入頁', async () => {
+    server.use(http.get('/api/auth/session', sessionExpired))
     renderApp()
-    expect(await screen.findByRole('heading', { name: 'iCloud HME 管理台' })).toBeInTheDocument()
+    expect(
+      await screen.findByRole('heading', { name: APP_TITLE }),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '登入' })).toBeInTheDocument()
   })
 
-  it('登录成功进入 /accounts', async () => {
+  it('登入成功進入 /accounts', async () => {
     server.use(
-      http.get('/api/auth/session', () =>
-        HttpResponse.json(
-          { success: false, code: 'AUTH_REQUIRED', message: '请先登录' },
-          { status: 401 },
-        ),
-      ),
+      http.get('/api/auth/session', sessionExpired),
       http.post('/api/auth/login', () =>
         HttpResponse.json({
           success: true,
@@ -94,38 +95,33 @@ describe('AuthProvider + LoginPage', () => {
     )
     renderApp()
     const user = userEvent.setup()
-    await screen.findByRole('heading', { name: 'iCloud HME 管理台' })
-    await user.type(screen.getByLabelText(/管理员密码/), 'admin-pass-2026')
-    await user.click(screen.getByRole('button', { name: /登录/ }))
+    await screen.findByRole('heading', { name: APP_TITLE })
+    await user.type(screen.getByLabelText(/管理員密碼/), 'admin-pass-2026')
+    await user.click(screen.getByRole('button', { name: '登入' }))
     expect(await screen.findByTestId('protected')).toBeInTheDocument()
   })
 
-  it('错误密码显示服务器消息且不回显密码', async () => {
+  it('錯誤密碼顯示伺服器訊息且不回顯密碼', async () => {
     server.use(
-      http.get('/api/auth/session', () =>
-        HttpResponse.json(
-          { success: false, code: 'AUTH_REQUIRED', message: '请先登录' },
-          { status: 401 },
-        ),
-      ),
+      http.get('/api/auth/session', sessionExpired),
       http.post('/api/auth/login', () =>
         HttpResponse.json(
-          { success: false, code: 'INVALID_CREDENTIALS', message: '管理员密码错误' },
+          { success: false, code: 'INVALID_CREDENTIALS', message: '管理員密碼錯誤' },
           { status: 401 },
         ),
       ),
     )
     renderApp()
     const user = userEvent.setup()
-    await screen.findByRole('heading', { name: 'iCloud HME 管理台' })
-    await user.type(screen.getByLabelText(/管理员密码/), 'wrong-password')
-    await user.click(screen.getByRole('button', { name: /登录/ }))
+    await screen.findByRole('heading', { name: APP_TITLE })
+    await user.type(screen.getByLabelText(/管理員密碼/), 'wrong-password')
+    await user.click(screen.getByRole('button', { name: '登入' }))
     const alert = await screen.findByRole('alert')
-    expect(alert).toHaveTextContent('管理员密码错误')
+    expect(alert).toHaveTextContent('管理員密碼錯誤')
     expect(alert).not.toHaveTextContent('wrong-password')
   })
 
-  it('登录后刷新页面可恢复会话', async () => {
+  it('登入後重新整理頁面可恢復工作階段', async () => {
     server.use(
       http.get('/api/auth/session', () =>
         HttpResponse.json({
@@ -144,7 +140,7 @@ describe('AuthProvider + LoginPage', () => {
     expect(await screen.findByTestId('protected')).toBeInTheDocument()
   })
 
-  it('退出调用 logout 并回登录页', async () => {
+  it('登出呼叫 logout 並回到登入頁', async () => {
     server.use(
       http.get('/api/auth/session', () =>
         HttpResponse.json({
@@ -171,17 +167,17 @@ describe('AuthProvider + LoginPage', () => {
     )
     const user = userEvent.setup()
     await screen.findByTestId('protected')
-    await user.click(screen.getByRole('button', { name: /退出登录/ }))
+    await user.click(screen.getByRole('button', { name: '登出' }))
     await waitFor(() =>
-      expect(screen.getByRole('heading', { name: 'iCloud HME 管理台' })).toBeInTheDocument(),
+      expect(screen.getByRole('heading', { name: APP_TITLE })).toBeInTheDocument(),
     )
   })
 
-  // 回归测试:面板"一直被登出"。
-  // 上游 iCloud 的鉴权失败属于业务错误,不得影响管理员会话。
-  // 两种状态码都要覆盖:502 是新后端的行为,401 是旧后端/防御性场景。
+  // 回歸測試:面板「一直被登出」。
+  // 上游 iCloud 的鑑權失敗屬於業務錯誤,不得影響管理員工作階段。
+  // 兩種狀態碼都要覆蓋:502 是新後端的行為,401 是舊後端/防禦性場景。
   it.each([502, 401])(
-    '业务接口返回上游失效(HTTP %i)时管理员会话保持有效',
+    '業務接口回傳上游失效(HTTP %i)時管理員工作階段保持有效',
     async (status) => {
       server.use(
         http.get('/api/auth/session', () =>
@@ -198,7 +194,7 @@ describe('AuthProvider + LoginPage', () => {
             {
               success: false,
               code: 'UPSTREAM_UNAUTHORIZED',
-              message: 'iCloud 会话失效,请更新 Cookie',
+              message: 'iCloud 工作階段失效，請更新 Cookie',
             },
             { status },
           ),
@@ -208,17 +204,17 @@ describe('AuthProvider + LoginPage', () => {
       await screen.findByTestId('protected')
 
       const user = userEvent.setup()
-      await user.click(screen.getByRole('button', { name: '刷新别名' }))
+      await user.click(screen.getByRole('button', { name: '重新整理別名' }))
 
       expect(
-        await screen.findByText('iCloud 会话失效,请更新 Cookie'),
+        await screen.findByText('iCloud 工作階段失效，請更新 Cookie'),
       ).toBeInTheDocument()
-      // 关键:仍然停留在受保护页面,没有被登出
+      // 關鍵:仍然停留在受保護頁面,沒有被登出
       expect(screen.getByTestId('protected')).toBeInTheDocument()
     },
   )
 
-  it('业务接口返回 AUTH_REQUIRED 时确实登出', async () => {
+  it('業務接口回傳 AUTH_REQUIRED 時確實登出', async () => {
     server.use(
       http.get('/api/auth/session', () =>
         HttpResponse.json({
@@ -231,7 +227,7 @@ describe('AuthProvider + LoginPage', () => {
       ),
       http.get('/api/aliases', () =>
         HttpResponse.json(
-          { success: false, code: 'AUTH_REQUIRED', message: '会话已失效,请重新登录' },
+          { success: false, code: 'AUTH_REQUIRED', message: '工作階段已失效，請重新登入' },
           { status: 401 },
         ),
       ),
@@ -240,15 +236,15 @@ describe('AuthProvider + LoginPage', () => {
     await screen.findByTestId('protected')
 
     const user = userEvent.setup()
-    await user.click(screen.getByRole('button', { name: '刷新别名' }))
+    await user.click(screen.getByRole('button', { name: '重新整理別名' }))
 
     expect(
-      await screen.findByRole('heading', { name: 'iCloud HME 管理台' }),
+      await screen.findByRole('heading', { name: APP_TITLE }),
     ).toBeInTheDocument()
   })
 })
 
-/** 渲染一个可以主动发起业务请求的受保护页面 */
+/** 繪製一個可以主動發起業務請求的受保護頁面 */
 function renderBusinessApp() {
   return render(
     <MemoryRouter initialEntries={['/accounts']}>
@@ -271,15 +267,15 @@ function BusinessCallProbe() {
 
   return (
     <div>
-      <p data-testid="protected">已登录页面</p>
+      <p data-testid="protected">已登入頁面</p>
       <button
         onClick={() => {
           void request('/api/aliases?account_id=acc_1').catch((err: unknown) => {
-            setError(err instanceof ApiError ? err.message : '网络连接失败，请检查服务状态')
+            setError(err instanceof ApiError ? err.message : '網路連線失敗，請檢查服務狀態')
           })
         }}
       >
-        刷新别名
+        重新整理別名
       </button>
       {error && <p>{error}</p>}
     </div>
@@ -292,8 +288,8 @@ function LogoutProbe() {
   if (status === 'anonymous') return <LoginPage />
   return (
     <div>
-      <p data-testid="protected">已登录页面</p>
-      <button onClick={() => void logout()}>退出登录</button>
+      <p data-testid="protected">已登入頁面</p>
+      <button onClick={() => void logout()}>登出</button>
     </div>
   )
 }
