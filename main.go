@@ -1,4 +1,4 @@
-// Command icloud-hme 啟動 iCloud Hide My Email 多帳號管理平台。
+// Command icloud-hme 啟動 iCloud HME Plus 多帳號管理平台。
 //
 // 兩個核心 HTTP 介面:
 //
@@ -18,13 +18,18 @@
 //	ICLOUD_HME_ADMIN_PASSWORD      管理員密碼,至少 8 字元(行程啟動後從環境清除)
 //	ICLOUD_HME_SESSION_TTL         工作階段有效期,預設 12h,範圍 15m-168h
 //	ICLOUD_HME_SECURE_COOKIE       TLS 反向代理部署時設為 true
+//	ICLOUD_HME_TEMP_TTL            隨機信箱自動刪除時間,預設 24h,範圍 1m-720h
 package main
 
 import (
+	"context"
 	"flag"
+	"fmt"
 	"log"
 	"os"
+	"os/signal"
 	"path/filepath"
+	"syscall"
 	"time"
 
 	"icloud-hme/internal/account"
@@ -45,9 +50,13 @@ func main() {
 	if err != nil {
 		log.Fatalf("ICLOUD_HME_SESSION_TTL 無效：%v", err)
 	}
+	tempTTL, err := tempTTLFromEnv()
+	if err != nil {
+		log.Fatalf("ICLOUD_HME_TEMP_TTL 無效：%v", err)
+	}
 	secureCookie := os.Getenv("ICLOUD_HME_SECURE_COOKIE") == "true"
 
-	log.Printf("iCloud Hide My Email 服務啟動 addr=%s", *addr)
+	log.Printf("iCloud HME Plus 服務啟動 addr=%s", *addr)
 
 	abs, err := filepath.Abs(*dataDir)
 	if err != nil {
@@ -67,10 +76,17 @@ func main() {
 		AdminPassword: adminPassword,
 		SessionTTL:    sessionTTL,
 		SecureCookie:  secureCookie,
+		DataDir:       abs,
+		TempTTL:       tempTTL,
 	})
 	if err != nil {
 		log.Fatalf("初始化服務失敗：%v", err)
 	}
+
+	// 隨機信箱到期後由背景清理程式自動刪除，不依賴瀏覽器是否開著。
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	srv.StartTempSweeper(ctx)
 
 	// 密碼只用於初始化認證,隨後立即從行程環境清除
 	_ = os.Unsetenv("ICLOUD_HME_ADMIN_PASSWORD")
@@ -81,17 +97,37 @@ func main() {
 	}
 }
 
+// 隨機信箱自動刪除時間的預設值與允許範圍。
+const (
+	defaultTempTTL = 24 * time.Hour
+	minTempTTL     = time.Minute
+	maxTempTTL     = 720 * time.Hour
+)
+
+// tempTTLFromEnv 讀取 ICLOUD_HME_TEMP_TTL。
+//
+// 獨立成函式是為了讓「有沒有真的讀到環境變數」能被測試涵蓋：先前就是把
+// 變數名稱當成值傳進去，結果不管怎麼設定都啟動失敗。
+func tempTTLFromEnv() (time.Duration, error) {
+	return parseDurationEnv(os.Getenv("ICLOUD_HME_TEMP_TTL"), defaultTempTTL, minTempTTL, maxTempTTL)
+}
+
 // parseSessionTTL 解析工作階段有效期,預設 12h,範圍 15m-168h。
 func parseSessionTTL(raw string) (time.Duration, error) {
+	return parseDurationEnv(raw, 12*time.Hour, 15*time.Minute, 168*time.Hour)
+}
+
+// parseDurationEnv 解析時長環境變數:空值用 fallback,並檢查是否落在範圍內。
+func parseDurationEnv(raw string, fallback, min, max time.Duration) (time.Duration, error) {
 	if raw == "" {
-		return 12 * time.Hour, nil
+		return fallback, nil
 	}
 	d, err := time.ParseDuration(raw)
 	if err != nil {
 		return 0, err
 	}
-	if d < 15*time.Minute || d > 168*time.Hour {
-		return 0, err
+	if d < min || d > max {
+		return 0, fmt.Errorf("必須介於 %s 與 %s 之間", min, max)
 	}
 	return d, nil
 }

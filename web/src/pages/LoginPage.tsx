@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/AuthProvider'
 import { ApiError } from '../api/client'
-import { IconAlert, IconLock, IconShield } from '../components/icons'
+import { IconAlert, IconICloudMailLogo, IconLock } from '../components/icons'
 
 export default function LoginPage() {
   const { login } = useAuth()
@@ -30,11 +30,11 @@ export default function LoginPage() {
     <div className="login-page">
       <div className="login-card">
         <div className="login-brand">
-          <span className="brand-mark" aria-hidden="true">
-            <IconShield size={26} />
+          <span className="brand-mark">
+            <IconICloudMailLogo size={52} />
           </span>
-          <h1>iCloud Hide My Email Dashboard</h1>
-          <p>管理 iCloud 隱藏郵件別名與收件匣</p>
+          <h1>iCloud HME Plus</h1>
+          <p>管理 iCloud 隱藏郵件別名、隨機信箱與收件匣</p>
         </div>
 
         <form onSubmit={handleSubmit} className="login-form">

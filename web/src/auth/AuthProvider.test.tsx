@@ -11,7 +11,7 @@ import LoginPage from '../pages/LoginPage'
 import { ApiError, request, registerUnauthorizedHandler, setCSRFToken } from '../api/client'
 
 /** 登入頁標題（LoginPage 的 <h1>）。 */
-const APP_TITLE = 'iCloud Hide My Email Dashboard'
+const APP_TITLE = 'iCloud HME Plus'
 
 function ProtectedProbe() {
   const { status } = useAuth()

@@ -1,6 +1,14 @@
 import { http, HttpResponse } from 'msw'
 import { describe, expect, it, vi, beforeEach } from 'vitest'
-import { request, registerUnauthorizedHandler, setCSRFToken } from './client'
+import {
+  createTempMailbox,
+  deleteTempMailbox,
+  listTempMailboxes,
+  request,
+  registerUnauthorizedHandler,
+  setCSRFToken,
+  setTempMailboxKeep,
+} from './client'
 import { server } from '../test/server'
 
 /** 通用的網路失敗訊息（client.ts 統一使用繁體中文） */
@@ -198,5 +206,112 @@ describe('api client', () => {
     await expect(
       request('/api/accounts', { signal: controller.signal }),
     ).rejects.toThrow()
+  })
+
+  describe('隨機信箱 API', () => {
+    it('listTempMailboxes 以 GET 取得追蹤清單', async () => {
+      let method = ''
+      server.use(
+        http.get('/api/temp', ({ request }) => {
+          method = request.method
+          return HttpResponse.json({
+            success: true,
+            data: { count: 0, mailboxes: [], ttl_seconds: 86400 },
+          })
+        }),
+      )
+      const data = await listTempMailboxes()
+      expect(method).toBe('GET')
+      expect(data).toEqual({ count: 0, mailboxes: [], ttl_seconds: 86400 })
+    })
+
+    it('createTempMailbox 以 POST 帶上 account_id 與 CSRF 標頭', async () => {
+      setCSRFToken('csrf-token-123')
+      let method = ''
+      let csrf: string | null = null
+      let body: unknown = null
+      server.use(
+        http.post('/api/temp', async ({ request: req }) => {
+          method = req.method
+          csrf = req.headers.get('X-CSRF-Token')
+          body = await req.json()
+          return HttpResponse.json({ success: true, data: { id: 'temp_1' } })
+        }),
+      )
+      const created = await createTempMailbox('acc_1')
+      expect(method).toBe('POST')
+      expect(csrf).toBe('csrf-token-123')
+      expect(body).toEqual({ account_id: 'acc_1' })
+      expect(created.id).toBe('temp_1')
+    })
+
+    it('createTempMailbox 未指定帳號時送空物件，由後端挑選', async () => {
+      let body: unknown = null
+      server.use(
+        http.post('/api/temp', async ({ request: req }) => {
+          body = await req.json()
+          return HttpResponse.json({ success: true, data: { id: 'temp_1' } })
+        }),
+      )
+      await createTempMailbox()
+      expect(body).toEqual({})
+    })
+
+    it('setTempMailboxKeep 對 id 做 URL 編碼並送出 keep', async () => {
+      let decodedId = ''
+      let body: unknown = null
+      server.use(
+        http.post('/api/temp/:id/keep', async ({ params, request: req }) => {
+          decodedId = String(params.id)
+          body = await req.json()
+          return HttpResponse.json({
+            success: true,
+            data: { id: decodedId, keep: true },
+          })
+        }),
+      )
+      const updated = await setTempMailboxKeep('temp/a b', true)
+      expect(decodedId).toBe('temp/a b')
+      expect(body).toEqual({ keep: true })
+      expect(updated.keep).toBe(true)
+    })
+
+    it('deleteTempMailbox 保留 upstream_warning', async () => {
+      let method = ''
+      server.use(
+        http.delete('/api/temp/:id', ({ params, request: req }) => {
+          method = req.method
+          return HttpResponse.json({
+            success: true,
+            data: {
+              id: String(params.id),
+              email: 'a@icloud.com',
+              removed: true,
+              upstream_warning: '別名不存在',
+            },
+          })
+        }),
+      )
+      const result = await deleteTempMailbox('temp_1')
+      expect(method).toBe('DELETE')
+      expect(result.removed).toBe(true)
+      expect(result.upstream_warning).toBe('別名不存在')
+    })
+
+    it('建立失敗時拋出 ApiError 並原樣保留後端訊息', async () => {
+      server.use(
+        http.post('/api/temp', () =>
+          HttpResponse.json(
+            { success: false, code: 'VALIDATION_ERROR', message: '沒有可用的帳號可建立隨機信箱' },
+            { status: 400 },
+          ),
+        ),
+      )
+      await expect(createTempMailbox()).rejects.toMatchObject({
+        status: 400,
+        code: 'VALIDATION_ERROR',
+        message: '沒有可用的帳號可建立隨機信箱',
+      })
+    })
   })
 })

@@ -1,4 +1,4 @@
-import type { ApiResponse } from './types'
+import type { ApiResponse, TempMailbox, TempMailboxList, TempMailboxRemoval } from './types'
 
 /** CSRF token，僅存於 React 記憶體狀態 */
 let csrfToken: string | null = null
@@ -114,4 +114,48 @@ export async function request<T>(
     )
   }
   return payload.data as T
+}
+
+/* ------------------------------------------------------------------ *
+ * 隨機信箱（/api/temp）
+ *
+ * 都是 request() 的薄封裝：統一的 ApiError（status/code/message）與
+ * 自動攜帶 X-CSRF-Token 都由 request() 處理，這裡只固定路徑與方法。
+ * ------------------------------------------------------------------ */
+
+/** 列出目前追蹤中的隨機信箱（含剩餘 TTL）。 */
+export function listTempMailboxes(): Promise<TempMailboxList> {
+  return request<TempMailboxList>('/api/temp')
+}
+
+/**
+ * 建立一個隨機信箱。
+ *
+ * 未指定 accountId 時由後端挑選可用帳號；指定時使用該帳號。
+ * 可能回 VALIDATION_ERROR（沒有可用帳號）或 502（上游 iCloud 失敗）。
+ */
+export function createTempMailbox(accountId?: string): Promise<TempMailbox> {
+  return request<TempMailbox>('/api/temp', {
+    method: 'POST',
+    body: accountId ? { account_id: accountId } : {},
+  })
+}
+
+/**
+ * 切換「不自動刪除」。
+ *
+ * 關閉（keep=false）時後端會重新起算一輪 TTL。
+ */
+export function setTempMailboxKeep(id: string, keep: boolean): Promise<TempMailbox> {
+  return request<TempMailbox>(`/api/temp/${encodeURIComponent(id)}/keep`, {
+    method: 'POST',
+    body: { keep },
+  })
+}
+
+/** 停止追蹤並刪除隨機信箱（回應可能帶 upstream_warning）。 */
+export function deleteTempMailbox(id: string): Promise<TempMailboxRemoval> {
+  return request<TempMailboxRemoval>(`/api/temp/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+  })
 }

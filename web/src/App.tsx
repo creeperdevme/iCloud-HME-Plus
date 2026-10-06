@@ -4,6 +4,7 @@ import { ToastProvider } from './components/ToastProvider'
 import AppShell from './components/AppShell'
 import LoginPage from './pages/LoginPage'
 import AccountsPage from './pages/AccountsPage'
+import TempMailPage from './pages/TempMailPage'
 import AliasesPage from './pages/AliasesPage'
 import InboxPage from './pages/InboxPage'
 
@@ -31,6 +32,7 @@ export default function App() {
             <Route path="/login" element={<LoginPage />} />
             <Route element={<ProtectedLayout />}>
               <Route path="/accounts" element={<AccountsPage />} />
+              <Route path="/temp" element={<TempMailPage />} />
               <Route path="/aliases" element={<AliasesPage />} />
               <Route path="/inbox" element={<InboxPage />} />
               <Route path="*" element={<Navigate to="/accounts" replace />} />

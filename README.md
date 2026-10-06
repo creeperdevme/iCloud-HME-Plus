@@ -1,29 +1,30 @@
-# iCloud Hide My Email 本地管理工具
+# iCloud HME Plus 本地管理工具
 
 [English](#english) | 中文
 
-通过逆向 iCloud Web 接口和 IMAP 邮件协议，实现 Apple iCloud 隐藏邮箱别名的创建、列出和邮件收取功能。内置中文管理界面（React 单页应用，随二进制内嵌分发）。
+透過逆向 iCloud Web 介面與 IMAP 郵件協定，實現 Apple iCloud 隱藏郵件別名的建立、列出與郵件收取功能。內建中文管理介面（React 單頁應用程式，隨二進位檔內嵌發佈）。
 
-## 功能特性
+## 功能特色
 
-- ✅ **中文管理界面** — 浏览器访问 `http://localhost:8081` 即开即用
-- ✅ **创建 HME 别名** — 自动生成 iCloud 隐藏邮箱地址
-- ✅ **列出所有别名** — 查看账号下的所有 HME 别名
-- ✅ **收取邮件** — 通过 IMAP 或 Web API 读取发到 HME 别名的邮件
-- ✅ **双路径读信** — 邮件读取优先走 IMAP (App Password),无 App Password 时回退 Web API (Cookie)
-- ✅ **多账号管理** — 支持多个 iCloud 账号并行管理
-- ✅ **双认证模式** — Cookie (创建别名 + 读邮件回退) 和 App Password (IMAP 优先)
-- ✅ **安全模型** — 单管理员会话、CSRF 校验、登录限流、响应脱敏
+- ✅ **中文管理介面** — 瀏覽器開啟 `http://localhost:8081` 即可使用
+- ✅ **建立 HME 別名** — 自動產生 iCloud 隱藏郵件地址
+- ✅ **列出所有別名** — 檢視帳號下的所有 HME 別名
+- ✅ **收取郵件** — 透過 IMAP 或 Web API 讀取寄到 HME 別名的郵件
+- ✅ **雙路徑讀信** — 郵件讀取優先走 IMAP (App Password)，無 App Password 時回退 Web API (Cookie)
+- ✅ **多帳號管理** — 支援多個 iCloud 帳號同時管理
+- ✅ **雙認證模式** — Cookie（建立別名 + 讀信回退）與 App Password（IMAP 優先）
+- ✅ **隨機信箱（臨時別名）** — 一鍵取得隨機 HME 信箱，預設 24 小時後自動刪除，可手動立即刪除或設為不自動刪除
+- ✅ **安全模型** — 單一管理員工作階段、CSRF 驗證、登入限流、回應脫敏
 
-## 快速开始
+## 快速開始
 
-### 1. 安装
+### 1. 安裝
 
-#### 方式一：下载二进制发布版（推荐）
+#### 方式一：下載二進位發行版（推薦）
 
-从 [GitHub Releases](https://github.com/xiaozhou26/icloud-hme/releases) 下载对应平台的二进制文件：
+從 [GitHub Releases](https://github.com/xiaozhou26/icloud-hme/releases) 下載對應平台的二進位檔：
 
-| 平台 | 文件 |
+| 平台 | 檔案 |
 |---|---|
 | Linux x86_64 | `icloud-hme_linux_amd64` |
 | Linux ARM64 | `icloud-hme_linux_arm64` |
@@ -32,7 +33,7 @@
 | Windows x86_64 | `icloud-hme_windows_amd64.exe` |
 
 ```bash
-# 示例：Linux 下直接运行（必须先设置管理员密码）
+# 範例：Linux 下直接執行（必須先設定管理員密碼）
 export ICLOUD_HME_ADMIN_PASSWORD='change-this-before-running-2026'
 chmod +x icloud-hme_linux_amd64
 ./icloud-hme_linux_amd64
@@ -41,10 +42,10 @@ chmod +x icloud-hme_linux_amd64
 #### 方式二：Docker
 
 ```bash
-# 拉取镜像
+# 拉取映像檔
 docker pull ghcr.io/xiaozhou26/icloud-hme:latest
 
-# 运行（将本机 data 目录挂载进去）
+# 執行（將本機 data 目錄掛載進去）
 docker run -d \
   --name icloud-hme \
   -p 8081:8081 \
@@ -53,49 +54,50 @@ docker run -d \
   ghcr.io/xiaozhou26/icloud-hme:latest
 ```
 
-> ⚠️ 上面的密码仅为示例，**不可照抄**，请务必更换为至少 8 字符的强密码。
+> ⚠️ 上面的密碼僅為範例，**不可照抄**，請務必更換為至少 8 個字元的強密碼。
 
-镜像支持 `linux/amd64` 和 `linux/arm64` 双架构，自动适配。
+映像檔支援 `linux/amd64` 與 `linux/arm64` 兩種架構，會自動適配。
 
-#### 方式三：源码编译（需要 Go 1.26+ 与 Node.js 22.12+ 双工具链）
+#### 方式三：原始碼編譯（需要 Go 1.26+ 與 Node.js 22.12+ 雙工具鏈）
 
 ```bash
-# 前置要求: Go 1.26+、Node.js 22.12+
+# 前置需求: Go 1.26+、Node.js 22.12+
 git clone https://github.com/xiaozhou26/icloud-hme.git
 cd icloud-hme
 
-# 一键构建（安装前端依赖 → 前端测试 → 前端构建 → Go 测试 → 编译）
+# 一鍵建置（安裝前端相依套件 → 前端測試 → 前端建置 → Go 測試 → 編譯）
 ./build.sh
 
-# 或者手动分步构建
+# 或者手動分步建置
 npm --prefix web ci
 npm --prefix web run build
 go build -o icloud-hme .
 ```
 
-### 2. 安全配置（必读）
+### 2. 安全設定（必讀）
 
-管理界面与 API 均需要管理员登录，升级后所有 API 都必须先通过 `POST /api/auth/login` 获取会话：
+管理介面與 API 均需要管理員登入，升級後所有 API 都必須先透過 `POST /api/auth/login` 取得工作階段：
 
-| 环境变量 | 说明 | 默认 |
+| 環境變數 | 說明 | 預設 |
 |---|---|---|
-| `ICLOUD_HME_ADMIN_PASSWORD` | 管理员密码，**必填**，至少 8 字符 | 无（缺失时拒绝启动） |
-| `ICLOUD_HME_SESSION_TTL` | 会话有效期 | `12h`（范围 `15m`–`168h`） |
-| `ICLOUD_HME_SECURE_COOKIE` | 通过 TLS 反向代理部署时设为 `true` | `false` |
+| `ICLOUD_HME_ADMIN_PASSWORD` | 管理員密碼，**必填**，至少 8 個字元 | 無（缺少時拒絕啟動） |
+| `ICLOUD_HME_SESSION_TTL` | 工作階段有效期限 | `12h`（範圍 `15m`–`168h`） |
+| `ICLOUD_HME_SECURE_COOKIE` | 透過 TLS 反向代理部署時設為 `true` | `false` |
+| `ICLOUD_HME_TEMP_TTL` | 隨機信箱自動刪除時間 | `24h`（範圍 `1m`–`720h`） |
 
-> **Breaking Change（v0.3+）**：升级后未设置 `ICLOUD_HME_ADMIN_PASSWORD` 将拒绝启动；
-> 原有匿名 API 调用将收到 `401 AUTH_REQUIRED`。管理员会话只存内存，进程重启即失效。
+> **Breaking Change（v0.3+）**：升級後未設定 `ICLOUD_HME_ADMIN_PASSWORD` 將拒絕啟動；
+> 原有匿名 API 呼叫將收到 `401 AUTH_REQUIRED`。管理員工作階段只存在記憶體中，行程重新啟動即失效。
 
-### 3. 配置账号
+### 3. 設定帳號
 
-在程序 `data/` 目录下创建 `accounts.json`（参考仓库内 `accounts.json.template`）：
+在程式 `data/` 目錄下建立 `accounts.json`（參考儲存庫內的 `accounts.json.template`）：
 
 ```json
 {
   "accounts": {
     "acc_1": {
       "id": "acc_1",
-      "name": "主号",
+      "name": "主號",
       "real_email": "owner@example.com",
       "icloud_email": "owner@icloud.com",
       "cookies": {
@@ -111,68 +113,68 @@ go build -o icloud-hme .
 }
 ```
 
-> **提示:** 也可以通过管理界面的「账号」页面动态添加账号，无需手动编辑 JSON 文件。`cookies`、`app_password`、`proxy` 都是可选的。
+> **提示:** 也可以透過管理介面的「帳號」頁面動態新增帳號，無須手動編輯 JSON 檔。`cookies`、`app_password`、`proxy` 都是可選的。
 
-### 4. 启动服务
+### 4. 啟動服務
 
 ```bash
-# 二进制方式（默认 data 目录）
+# 二進位方式（預設 data 目錄）
 export ICLOUD_HME_ADMIN_PASSWORD='your-strong-password'
 ./icloud-hme_linux_amd64
 
-# 指定端口和数据目录
+# 指定連接埠與資料目錄
 ./icloud-hme_linux_amd64 -addr :9090 -data ./my_data
 
-# 调试模式（启用请求日志）
+# 除錯模式（啟用請求日誌）
 ./icloud-hme_linux_amd64 -debug
 
-# 查看完整参数
+# 檢視完整參數
 ./icloud-hme_linux_amd64 -h
 ```
 
-服务默认监听 `:8081`。浏览器打开 `http://localhost:8081` 进入管理界面（账号 / 别名 / 收件箱）。完整 API 契约见 [API.md](API.md)。
+服務預設監聽 `:8081`。瀏覽器開啟 `http://localhost:8081` 進入管理介面（帳號 / 別名 / 隨機信箱 / 收件匣）。完整 API 契約見 [API.md](API.md)。
 
-## API 接口
+## API 介面
 
-> **认证**：除 `POST /api/auth/login` 与 `GET /api/auth/session` 外，所有 `/api` 接口都需要管理员会话 Cookie（`hme_session`）；非 GET/HEAD/OPTIONS 请求还需携带 `X-CSRF-Token` 请求头。完整契约与 curl 示例见 [API.md](API.md)。
+> **認證**：除 `POST /api/auth/login` 與 `GET /api/auth/session` 外，所有 `/api` 介面都需要管理員工作階段 Cookie（`hme_session`）；非 GET/HEAD/OPTIONS 請求還需攜帶 `X-CSRF-Token` 請求標頭。完整契約與 curl 範例見 [API.md](API.md)。
 
-### 核心接口
+### 核心介面
 
-#### 创建 HME 别名
+#### 建立 HME 別名
 
 ```bash
 POST /api/create
 
-# 请求体
+# 請求主體
 {
-  "account_id": "acc_1",      # 必填: 账号 ID
-  "label": "注册某网站"        # 可选: 别名标签
+  "account_id": "acc_1",      # 必填: 帳號 ID
+  "label": "註冊某網站"        # 可選: 別名標籤
 }
 
-# 响应
+# 回應
 {
   "success": true,
   "data": {
     "email": "xyz123@icloud.com",
-    "label": "注册某网站",
+    "label": "註冊某網站",
     "created_at": "2024-01-15T10:30:00Z",
     "account_id": "acc_1"
   }
 }
 ```
 
-#### 读取邮件
+#### 讀取郵件
 
 ```bash
 GET /api/inbox?account_id=acc_1&alias=xyz123@icloud.com&limit=20&days=7
 
-# 参数说明:
-#   account_id - 必填: 账号 ID
-#   alias      - 可选: 只读取发到该别名的邮件
-#   limit      - 可选: 返回邮件数量 (默认 20)
-#   days       - 可选: 查找最近几天的邮件 (默认 7,仅 IMAP 模式)
+# 參數說明:
+#   account_id - 必填: 帳號 ID
+#   alias      - 可選: 只讀取寄到該別名的郵件
+#   limit      - 可選: 回傳郵件數量 (預設 20)
+#   days       - 可選: 查找最近幾天的郵件 (預設 7,僅 IMAP 模式)
 
-# 响应
+# 回應
 {
   "success": true,
   "data": {
@@ -185,97 +187,97 @@ GET /api/inbox?account_id=acc_1&alias=xyz123@icloud.com&limit=20&days=7
         "id": "1042",
         "from": "noreply@example.com",
         "to": "xyz123@icloud.com",
-        "subject": "欢迎注册",
-        "preview": "感谢您的注册...",
+        "subject": "歡迎註冊",
+        "preview": "感謝您的註冊...",
         "date": "2026-07-09T14:32:10+08:00"
       }
     ]
   }
 }
 
-# 读取方式 (自动选择):
-#   method: "imap"    — 通过 App Password 认证 (优先)
-#   method: "web_api" — 通过 Cookie 认证,无需 App Password (回退)
+# 讀取方式 (自動選擇):
+#   method: "imap"    — 透過 App Password 認證 (優先)
+#   method: "web_api" — 透過 Cookie 認證,無須 App Password (回退)
 ```
 
-### 账号管理接口
+### 帳號管理介面
 
-#### 列出所有账号
+#### 列出所有帳號
 
 ```bash
 GET /api/accounts
 
-# 响应
+# 回應
 {
   "success": true,
   "data": [
-    {"id": "acc_1", "name": "主号"},
-    {"id": "acc_2", "name": "副号"}
+    {"id": "acc_1", "name": "主號"},
+    {"id": "acc_2", "name": "副號"}
   ]
 }
 ```
 
-#### 添加账号
+#### 新增帳號
 
-**简化版（cookies 可选）:**
+**簡化版（cookies 可選）:**
 
 ```bash
 POST /api/accounts
 
-# 请求体
+# 請求主體
 {
-  "name": "新账号",
-  "host": "icloud.com",           # 可选
-  "proxy": "http://..."           # 可选
+  "name": "新帳號",
+  "host": "icloud.com",           # 可選
+  "proxy": "http://..."           # 可選
 }
 
-# 响应 - 状态为 pending,需登录
+# 回應 - 狀態為 pending,需登入
 {
   "success": true,
   "data": {
     "id": "acc_xxx",
-    "name": "新账号",
+    "name": "新帳號",
     "status": "pending"
   }
 }
 ```
 
-**完整版（带 Cookie）:**
+**完整版（帶 Cookie）:**
 
 ```bash
 POST /api/accounts
 
-# 请求体
+# 請求主體
 {
-  "name": "新账号",
+  "name": "新帳號",
   "cookies": "{\"x-apple-session-token\":\"token_value\"}",  # JSON 或 Header 格式
-  "host": "icloud.com",           # 可选
-  "proxy": "http://..."           # 可选
+  "host": "icloud.com",           # 可選
+  "proxy": "http://..."           # 可選
 }
 
-# 响应
+# 回應
 {
   "success": true,
   "data": {
     "id": "acc_3",
-    "name": "新账号",
+    "name": "新帳號",
     "status": "active"
   }
 }
 ```
 
-#### 账号登录（获取 Cookie）
+#### 帳號登入（取得 Cookie）
 
 ```bash
 POST /api/accounts/:id/login
 
-# 请求体
+# 請求主體
 {
-  "password": "用户的常规iCloud密码",  # 不是 App Password
-  "otp_code": "123456"                  # 可选,2FA 验证码
+  "password": "使用者的一般 iCloud 密碼",  # 不是 App Password
+  "otp_code": "123456"                  # 可選,2FA 驗證碼
 }
 
-# 响应
+# 回應
 {
   "success": true,
   "data": {
@@ -288,30 +290,30 @@ POST /api/accounts/:id/login
 }
 ```
 
-#### 删除账号
+#### 刪除帳號
 
 ```bash
 DELETE /api/accounts/:id
 
-# 响应
+# 回應
 {
   "success": true,
   "data": {"id": "acc_3"}
 }
 ```
 
-#### 设置 App Password
+#### 設定 App Password
 
 ```bash
 POST /api/accounts/:id/password
 
-# 请求体
+# 請求主體
 {
   "icloud_email": "your_email@icloud.com",
   "app_password": "xxxx-xxxx-xxxx-xxxx"
 }
 
-# 响应
+# 回應
 {
   "success": true,
   "data": {
@@ -321,14 +323,14 @@ POST /api/accounts/:id/password
 }
 ```
 
-### 别名管理接口
+### 別名管理介面
 
-#### 列出所有别名
+#### 列出所有別名
 
 ```bash
 GET /api/aliases?account_id=acc_1
 
-# 响应
+# 回應
 {
   "success": true,
   "data": {
@@ -337,7 +339,7 @@ GET /api/aliases?account_id=acc_1
     "aliases": [
       {
         "email": "xyz123@icloud.com",
-        "label": "注册某网站",
+        "label": "註冊某網站",
         "created_at": "2024-01-15T10:30:00Z"
       }
     ]
@@ -345,17 +347,17 @@ GET /api/aliases?account_id=acc_1
 }
 ```
 
-#### 停用别名
+#### 停用別名
 
 ```bash
 POST /api/aliases/:id/deactivate
 
-# 请求体
+# 請求主體
 {
   "account_id": "acc_1"
 }
 
-# 响应
+# 回應
 {
   "success": true,
   "data": {
@@ -365,17 +367,17 @@ POST /api/aliases/:id/deactivate
 }
 ```
 
-#### 激活别名
+#### 啟用別名
 
 ```bash
 POST /api/aliases/:id/reactivate
 
-# 请求体
+# 請求主體
 {
   "account_id": "acc_1"
 }
 
-# 响应
+# 回應
 {
   "success": true,
   "data": {
@@ -385,17 +387,17 @@ POST /api/aliases/:id/reactivate
 }
 ```
 
-#### 删除别名
+#### 刪除別名
 
 ```bash
 DELETE /api/aliases/:id
 
-# 请求体
+# 請求主體
 {
   "account_id": "acc_1"
 }
 
-# 响应
+# 回應
 {
   "success": true,
   "data": {
@@ -404,164 +406,211 @@ DELETE /api/aliases/:id
 }
 ```
 
-## 认证方式
+### 隨機信箱（臨時別名）
 
-### 方式一: Cookie 认证 (推荐,功能最完整)
+一鍵取得隨機的 iCloud 隱藏郵件信箱，用來註冊服務或收取一次性驗證信。預設 **24 小時後自動刪除**，可手動立即刪除，也可標記為**不自動刪除**。
 
-Cookie 认证可实现所有功能:创建别名、读取邮件、管理别名。
+**行為重點：**
 
-**适用范围:**
-- 创建/停用/激活/删除 HME 别名 ✅
-- 读取邮件 (通过 iCloud Web API,无需 App Password) ✅
+- 開啟「隨機信箱」頁面時，若目前沒有任何追蹤中的隨機信箱，會自動建立一個。
+- 別名本身由 iCloud 隨機產生；本伺服器只負責產生好辨識的隨機標籤（格式 `temp-<word>-<word>-<四位數>`，例如 `temp-jade-reef-4821`）。
+- 到期刪除由**伺服器的背景清理程式**執行（每分鐘檢查一次），不依賴瀏覽器是否開著，因此關掉網頁也會照常刪除。
+- 自動刪除連續失敗 10 次後會停止追蹤，並在日誌留下訊息（避免上游已刪除的別名讓記錄永遠卡住）。
+- 關閉「不自動刪除」時，到期時間會**從當下重新起算 24 小時**。
+- 只有**有 Cookie** 的帳號能用來建立隨機信箱（App 專用密碼只能拿來登入換 Cookie，本身不足以呼叫 HME 介面）。
+- 追蹤記錄存放於 `<資料目錄>/temp_mailboxes.json`。
+- 讀取隨機信箱的郵件請沿用既有的 `GET /api/inbox?account_id=<acc>&alias=<email>`，**沒有**專用的讀信端點。
 
-**获取 Cookie:**
+**環境變數：** `ICLOUD_HME_TEMP_TTL` 可調整自動刪除時間，預設 `24h`，允許範圍 `1m` 到 `720h`。
 
-1. 使用浏览器登录 [icloud.com](https://www.icloud.com) 或 [icloud.com.cn](https://www.icloud.com.cn) (国区)
-2. 打开浏览器开发者工具 (F12)
-3. 进入 Application → Cookies
-4. 导出全部 Cookie 为 `{"key":"value"}` 格式的 JSON
+```bash
+POST   /api/temp                 建立隨機信箱
+       body: {"account_id": "acc_xxx"}   // account_id 可省略，省略時使用第一個有 Cookie 的帳號
+       -> data: TempMailbox
 
-**关键 Cookie (必需):**
-- `X-APPLE-WEBAUTH-TOKEN` — 认证 token
+GET    /api/temp                 列出追蹤中的隨機信箱
+       -> data: {"count": 2, "mailboxes": [TempMailbox, ...], "ttl_seconds": 86400}
+
+POST   /api/temp/:id/keep        切換是否自動刪除
+       body: {"keep": true}        // true = 不自動刪除；false = 重新起算 TTL
+       -> data: TempMailbox
+
+DELETE /api/temp/:id             立即刪除隨機信箱
+       -> data: {"id": "...", "email": "...", "removed": true,
+                 "upstream_warning": "..."}   // upstream_warning 只在 iCloud 端刪除失敗時出現
+```
+
+**可能錯誤碼：**
+
+- `VALIDATION_ERROR`（400）— 沒有任何有 Cookie 的帳號可用，或指定的帳號沒有 Cookie；訊息會引導使用者前往「帳號管理」處理。
+- `ACCOUNT_NOT_FOUND`（404）— 指定的 `account_id` 不存在。
+- `NOT_FOUND`（404）— 指定的隨機信箱不在追蹤清單中。
+- `UPSTREAM_FAILURE`（502）— iCloud 端建立失敗，或未回傳別名識別碼。
+
+> **注意**：本專案的不變式是 **HTTP 401 只代表管理員工作階段失效**，上游 iCloud 的失敗一律使用 502，不可使用 401。`TempMailbox` 物件欄位與完整契約見 [API.md](API.md)。
+
+## 認證方式
+
+### 方式一: Cookie 認證 (推薦,功能最完整)
+
+Cookie 認證可實現所有功能:建立別名、讀取郵件、管理別名。
+
+**適用範圍:**
+- 建立/停用/啟用/刪除 HME 別名 ✅
+- 讀取郵件 (透過 iCloud Web API,無須 App Password) ✅
+
+**取得 Cookie:**
+
+1. 使用瀏覽器登入 [icloud.com](https://www.icloud.com) 或 [icloud.com.cn](https://www.icloud.com.cn) (中國區)
+2. 開啟瀏覽器開發者工具 (F12)
+3. 進入 Application → Cookies
+4. 匯出全部 Cookie 為 `{"key":"value"}` 格式的 JSON
+
+**關鍵 Cookie (必需):**
+- `X-APPLE-WEBAUTH-TOKEN` — 認證 token
 - `X-APPLE-WEBAUTH-USER` — 含 dsid (`v=1:s=1:d=22789132008`)
-- `X-APPLE-WEBAUTH-HSA-TRUST` — 设备信任 token
-- `X-APPLE-DS-WEB-SESSION-TOKEN` — 会话 token
+- `X-APPLE-WEBAUTH-HSA-TRUST` — 裝置信任 token
+- `X-APPLE-DS-WEB-SESSION-TOKEN` — 工作階段 token
 
-**注意:** 导出的 Cookie 值不要包含多余的引号或转义字符。
+**注意:** 匯出的 Cookie 值不要包含多餘的引號或跳脫字元。
 
-### 方式二: App Password 认证 (IMAP,优先读邮件)
+### 方式二: App Password 認證 (IMAP,優先讀取郵件)
 
-App Password 用于 IMAP 读取邮件,是邮件读取的优先路径 (支持服务端按收件人搜索)。
+App Password 用於 IMAP 讀取郵件,是郵件讀取的優先路徑 (支援伺服器端依收件人搜尋)。
 
-**生成 App Password:**
+**產生 App Password:**
 
-1. 登录 [appleid.apple.com](https://appleid.apple.com)
-2. 进入 "登录和安全" → "App 专用密码"
-3. 生成新密码,用于此工具
+1. 登入 [appleid.apple.com](https://appleid.apple.com)
+2. 進入「登入與安全性」→「App 專用密碼」
+3. 產生新密碼,用於 iCloud HME Plus
 
-### 邮件读取双路径
+### 郵件讀取雙路徑
 
-`GET /api/inbox` 自动选择读取方式:
+`GET /api/inbox` 會自動選擇讀取方式:
 
-1. **优先: IMAP (App Password)** — 设置了 App Password 时使用,支持服务端按收件人 (`TO`) 搜索
-2. **回退: Web API (Cookie)** — 无 App Password 或 IMAP 失败时,通过 `mccgateway` 端点读取,本地按别名过滤
+1. **優先: IMAP (App Password)** — 設定了 App Password 時使用,支援伺服器端依收件人 (`TO`) 搜尋
+2. **回退: Web API (Cookie)** — 無 App Password 或 IMAP 失敗時,透過 `mccgateway` 端點讀取,在本機依別名過濾
 
-响应中包含 `"method": "web_api"` 或 `"method": "imap"` 字段,标识实际使用的读取方式。
+回應中包含 `"method": "web_api"` 或 `"method": "imap"` 欄位,標示實際使用的讀取方式。
 
-## 项目架构
+## 專案架構
 
 ```
 icloud-hme/
-├── main.go                 # 入口: 读取安全配置、加载账号、启动服务
-├── web/                    # 前端工程 (React + TypeScript + Vite)
-│   └── src/                #   管理界面源码
-├── accounts.json           # 账号配置文件 (自动生成)
+├── main.go                 # 進入點: 讀取安全設定、載入帳號、啟動服務
+├── web/                    # 前端專案 (React + TypeScript + Vite)
+│   └── src/                #   管理介面原始碼
+├── accounts.json           # 帳號設定檔 (自動產生)
 ├── go.mod
 └── internal/
     ├── account/
-    │   ├── manager.go      # 多账号管理器 (持久化、客户端工厂)
-    │   └── public.go       # 公开 DTO (Summary) 与输入校验
+    │   ├── manager.go      # 多帳號管理器 (持久化、用戶端工廠)
+    │   └── public.go       # 公開 DTO (Summary) 與輸入驗證
     ├── auth/
-    │   ├── manager.go      # 管理员会话 + CSRF
-    │   └── limiter.go      # 登录失败限流
+    │   ├── manager.go      # 管理員工作階段 + CSRF
+    │   └── limiter.go      # 登入失敗限流
     ├── hme/
-    │   ├── client.go       # iCloud HME Web 客户端 (Cookie 认证)
-    │   └── auth.go         # SRP 登录 (账号密码 + 2FA 获取 Cookie)
+    │   ├── client.go       # iCloud HME Web 用戶端 (Cookie 認證)
+    │   └── auth.go         # SRP 登入 (帳號密碼 + 2FA 取得 Cookie)
     ├── mail/
-    │   ├── client.go       # IMAP 邮件客户端 (App Password 认证)
-    │   └── web_client.go   # Web 邮件客户端 (Cookie 认证,无需 App Password)
+    │   ├── client.go       # IMAP 郵件用戶端 (App Password 認證)
+    │   └── web_client.go   # Web 郵件用戶端 (Cookie 認證,無須 App Password)
     ├── server/
-    │   ├── server.go       # 路由分组 (认证 + CSRF)
-    │   ├── backend.go      # 业务接口与 Manager 适配器
-    │   ├── auth.go         # 登录/会话/退出 handler 与中间件
-    │   ├── account_handlers.go  # 账号管理 handler
-    │   └── middleware.go   # 安全响应头、请求上限
+    │   ├── server.go       # 路由分組 (認證 + CSRF)
+    │   ├── backend.go      # 業務介面與 Manager 轉接器
+    │   ├── auth.go         # 登入/工作階段/登出 handler 與中介軟體
+    │   ├── account_handlers.go  # 帳號管理 handler
+    │   └── middleware.go   # 安全回應標頭、請求大小上限
     └── webui/
-        └── embed.go        # 内嵌前端资源 + SPA fallback
+        └── embed.go        # 內嵌前端資源 + SPA fallback
 ```
 
-### 核心模块
+### 核心模組
 
-- **account.Manager**: 管理多个 iCloud 账号,负责配置持久化和客户端创建
-- **hme.Client**: 封装 iCloud HME Web API,支持 Cookie 认证
-- **hme.auth**: SRP 协议登录,支持账号密码 + 可选 2FA
-- **mail.Client**: IMAP 邮件客户端 (App Password,优先读邮件)
-- **mail.WebClient**: 通过 iCloud Web API (mccgateway) 读取邮件,无需 App Password
-- **server.Server**: HTTP API 服务 + 管理界面静态资源
+- **account.Manager**: 管理多個 iCloud 帳號,負責設定持久化與用戶端建立
+- **hme.Client**: 封裝 iCloud HME Web API,支援 Cookie 認證
+- **hme.auth**: SRP 協定登入,支援帳號密碼 + 可選 2FA
+- **mail.Client**: IMAP 郵件用戶端 (App Password,優先讀取郵件)
+- **mail.WebClient**: 透過 iCloud Web API (mccgateway) 讀取郵件,無須 App Password
+- **server.Server**: HTTP API 服務 + 管理介面靜態資源
 
-## 技术栈
+## 技術棧
 
 - **Go 1.26+** / **Gin** — HTTP 框架
-- **React 19 + TypeScript + Vite 8** — 管理界面
-- **go-imap** — IMAP 协议实现
-- **tls-client** — TLS 指纹模拟 (绕过 iCloud 反爬)
+- **React 19 + TypeScript + Vite 8** — 管理介面
+- **go-imap** — IMAP 協定實作
+- **tls-client** — TLS 指紋模擬 (繞過 iCloud 反爬蟲)
 
-## 常见问题
+## 常見問題
 
-### Q: 创建别名返回 401/403 错误?
+### Q: 建立別名回傳 401/403 錯誤?
 
-**A:** Cookie 已过期，需要重新获取。iCloud Cookie 有效期通常为 24 小时。
+**A:** Cookie 已過期，需要重新取得。iCloud Cookie 有效期限通常為 24 小時。
 
-### Q: 读取邮件返回超时?
+### Q: 讀取郵件回傳逾時?
 
-**A:** 检查网络连接，确保可以访问 `imap.mail.me.com:993`。
+**A:** 檢查網路連線，確保可以存取 `imap.mail.me.com:993`。
 
-### Q: 如何查看某个别名收到了哪些邮件?
+### Q: 如何檢視某個別名收到了哪些郵件?
 
-**A:** 调用 `GET /api/inbox?account_id=acc_1&alias=your_alias@icloud.com`
+**A:** 呼叫 `GET /api/inbox?account_id=acc_1&alias=your_alias@icloud.com`
 
-### Q: 支持同时管理多个 iCloud 账号吗?
+### Q: 支援同時管理多個 iCloud 帳號嗎?
 
-**A:** 支持，在 `accounts.json` 中配置多个账号即可，每个账号有独立的 `id`。
+**A:** 支援，在 `accounts.json` 中設定多個帳號即可，每個帳號有獨立的 `id`。
 
-## 开发指南
+### Q: 隨機信箱關掉網頁後還會自動刪除嗎?
 
-### 本地开发
+**A:** 會。到期刪除由伺服器的背景清理程式執行（每分鐘檢查一次），與瀏覽器是否開著無關。
+
+## 開發指南
+
+### 本機開發
 
 ```bash
-# 前端开发模式 (vite dev server, /api 代理到 :8081)
+# 前端開發模式 (vite dev server, /api 代理到 :8081)
 npm --prefix web ci
 npm --prefix web run dev
 
-# 后端开发模式
+# 後端開發模式
 export ICLOUD_HME_ADMIN_PASSWORD='your-strong-password'
 go run main.go -debug
 
-# 前端检查 (lint + test + build)
+# 前端檢查 (lint + test + build)
 npm --prefix web run check
 
-# 完整构建 (含前端)
+# 完整建置 (含前端)
 ./build.sh
 
-# 交叉编译
+# 交叉編譯
 GOOS=linux GOARCH=amd64 go build -o icloud-hme .
 GOOS=windows GOARCH=amd64 go build -o icloud-hme.exe .
 ```
 
-### 发布
+### 發佈
 
-推送 `v*` tag 到 GitHub 自动触发 CI：
+推送 `v*` tag 到 GitHub 會自動觸發 CI：
 
 ```bash
 git tag v0.2.0 && git push origin --tags
 ```
 
-Actions 会自动构建多平台二进制、Docker 镜像（`ghcr.io/xiaozhou26/icloud-hme`）并创建 Release。
+Actions 會自動建置多平台二進位檔、Docker 映像檔（`ghcr.io/xiaozhou26/icloud-hme`）並建立 Release。
 
-### 代码规范
+### 程式碼規範
 
-- 代码注释使用中文
-- 错误信息返回给用户时使用中文
-- API 响应格式统一: `{success: bool, data: any, message: string}`
+- 程式碼註解使用中文
+- 錯誤訊息回傳給使用者時使用中文
+- API 回應格式統一: `{success: bool, data: any, message: string}`
 
-## 许可证
+## 授權條款
 
 MIT License
 
 ---
-## 社区
+## 社群
 
-友情链接：[LINUX DO](https://linux.do)
+友情連結：[LINUX DO](https://linux.do)
 
 ## English
 
@@ -573,6 +622,7 @@ A local management tool for Apple iCloud Hide My Email (HME) aliases, supporting
 - Create HME aliases automatically
 - List all aliases for an account
 - Read emails sent to HME aliases via IMAP or Web API
+- Temporary random mailboxes with automatic deletion (default 24h TTL)
 - Manage multiple iCloud accounts
 - Dual authentication: Cookie and App Password
 - Security: single-admin session, CSRF checks, login rate limiting, redacted API responses
@@ -635,7 +685,10 @@ go build -o icloud-hme .
 | `ICLOUD_HME_ADMIN_PASSWORD` | Admin password, **required**, min 8 chars | none (refuses to start) |
 | `ICLOUD_HME_SESSION_TTL` | Session TTL | `12h` (range `15m`–`168h`) |
 | `ICLOUD_HME_SECURE_COOKIE` | Set `true` when deployed behind TLS | `false` |
+| `ICLOUD_HME_TEMP_TTL` | Random mailbox auto-delete TTL | `24h` (range `1m`–`720h`) |
 
 > **Breaking change (v0.3+)**: without `ICLOUD_HME_ADMIN_PASSWORD` the server refuses to start; all API endpoints now require login (`401 AUTH_REQUIRED`). Admin sessions are in-memory only and are lost on restart.
 
 Create `data/accounts.json` (see `accounts.json.template`) and start the server (default port `:8081`). Open `http://localhost:8081` to use the management UI. Full API contract: [API.md](API.md).
+
+Temporary random mailboxes are created with `POST /api/temp`; they are deleted automatically after 24 hours by a server-side cleanup job (configurable via `ICLOUD_HME_TEMP_TTL`).

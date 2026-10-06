@@ -1,8 +1,8 @@
-# iCloud Hide My Email API 文档
+# iCloud HME Plus API 文件
 
 ## 概述
 
-HTTP JSON API，所有接口返回统一格式：
+HTTP JSON API，所有介面回傳統一格式：
 
 ```json
 {
@@ -11,66 +11,66 @@ HTTP JSON API，所有接口返回统一格式：
 }
 ```
 
-**失败响应：**
+**失敗回應：**
 
 ```json
 {
   "success": false,
   "code": "VALIDATION_ERROR",
-  "message": "参数错误"
+  "message": "參數錯誤"
 }
 ```
 
-**稳定错误码：** `AUTH_REQUIRED`、`INVALID_CREDENTIALS`、`RATE_LIMITED`、`CSRF_INVALID`、`VALIDATION_ERROR`、`ACCOUNT_NOT_FOUND`、`OTP_REQUIRED`、`OTP_INVALID`、`UPSTREAM_UNAUTHORIZED`、`UPSTREAM_FAILURE`、`INTERNAL_ERROR`
+**穩定錯誤碼：** `AUTH_REQUIRED`、`INVALID_CREDENTIALS`、`RATE_LIMITED`、`CSRF_INVALID`、`VALIDATION_ERROR`、`ACCOUNT_NOT_FOUND`、`NOT_FOUND`、`OTP_REQUIRED`、`OTP_INVALID`、`UPSTREAM_UNAUTHORIZED`、`UPSTREAM_FAILURE`、`INTERNAL_ERROR`
 
-**安全约定：**
+**安全約定：**
 
-- 除 `POST /api/auth/login` 与 `GET /api/auth/session` 外，所有 `/api` 接口都需要管理员会话
-- 非 GET/HEAD/OPTIONS 请求必须携带 `X-CSRF-Token` 请求头
-- 会话 Cookie：`hme_session`，`Path=/`、`HttpOnly`、`SameSite=Strict`；TLS 部署时设置 `ICLOUD_HME_SECURE_COOKIE=true` 启用 `Secure`
-- 任何账号响应**绝不包含** `cookies`、`app_password`、`proxy` 字段（代理只暴露 `has_proxy` 布尔值）
-- 用户可见错误消息不拼接上游响应体或秘密
+- 除 `POST /api/auth/login` 與 `GET /api/auth/session` 外，所有 `/api` 介面都需要管理員工作階段
+- 非 GET/HEAD/OPTIONS 請求必須攜帶 `X-CSRF-Token` 請求標頭
+- 工作階段 Cookie：`hme_session`，`Path=/`、`HttpOnly`、`SameSite=Strict`；TLS 部署時設定 `ICLOUD_HME_SECURE_COOKIE=true` 以啟用 `Secure`
+- 任何帳號回應**絕不包含** `cookies`、`app_password`、`proxy` 欄位（代理只暴露 `has_proxy` 布林值）
+- 使用者可見的錯誤訊息不會拼接上游回應主體或機密
 
 ---
 
-## 认证端点
+## 認證端點
 
-### 1. 登录
+### 1. 登入
 
 ```http
 POST /api/auth/login
 Content-Type: application/json
 
-{"password": "管理员密码"}
+{"password": "管理員密碼"}
 ```
 
-**成功响应：** 设置 `hme_session` Cookie
+**成功回應：** 設定 `hme_session` Cookie
 
 ```json
 {
   "success": true,
   "data": {
-    "csrf_token": "随机值",
+    "csrf_token": "隨機值",
     "expires_at": "2026-08-05T22:00:00+08:00"
   }
 }
 ```
 
-**错误：**
+**錯誤：**
 
-- `401 INVALID_CREDENTIALS` — 密码错误（不设置 Cookie）
-- `429 RATE_LIMITED` — 同一 IP 15 分钟内失败超过 5 次，响应带 `Retry-After` 头
+- `401 INVALID_CREDENTIALS` — 密碼錯誤（不設定 Cookie）
+- `429 RATE_LIMITED` — 同一 IP 15 分鐘內失敗超過 5 次，回應帶 `Retry-After` 標頭
 
-### 2. 查询会话
+### 2. 查詢工作階段
 
 ```http
 GET /api/auth/session
 Cookie: hme_session=...
 ```
 
-**成功响应：** 同上（csrf_token / expires_at）。会话无效返回 `401 AUTH_REQUIRED`。
+**成功回應：** 同上（csrf_token / expires_at）。工作階段無效時回傳 `401 AUTH_REQUIRED`。
 
-### 3. 退出
+### 3. 登出
 
 ```http
 POST /api/auth/logout
@@ -82,15 +82,15 @@ X-CSRF-Token: <token>
 
 ---
 
-## 账号端点
+## 帳號端點
 
-### 4. 列出账号
+### 4. 列出帳號
 
 ```http
 GET /api/accounts
 ```
 
-**响应：** `Summary[]`，排序为 active → pending → error，同状态按 name、id。
+**回應：** `Summary[]`，排序為 active → pending → error，同狀態再依 name、id 排序。
 
 ```json
 {
@@ -98,7 +98,7 @@ GET /api/accounts
   "data": [
     {
       "id": "acc_12345678",
-      "name": "主号",
+      "name": "主號",
       "real_email": "owner@example.com",
       "icloud_email": "owner@icloud.com",
       "host": "icloud.com",
@@ -116,16 +116,16 @@ GET /api/accounts
 }
 ```
 
-**禁止出现的字段：** `cookies`、`app_password`、`proxy`。`status_message` 只映射固定文案（pending → "等待配置或验证凭据"，error → "凭据验证失败"），不返回内部错误原文。
+**禁止出現的欄位：** `cookies`、`app_password`、`proxy`。`status_message` 只會對應固定文案（pending → 「等待設定或驗證憑證」，error → 「憑證驗證失敗」），不會回傳內部錯誤原文。
 
-### 5. 添加账号
+### 5. 新增帳號
 
 ```http
 POST /api/accounts
 X-CSRF-Token: <token>
 
 {
-  "name": "新账号",
+  "name": "新帳號",
   "icloud_email": "owner@icloud.com",
   "host": "icloud.com",
   "proxy": "http://user:pass@host:port",
@@ -133,25 +133,25 @@ X-CSRF-Token: <token>
 }
 ```
 
-- `name` 必填，去空白后 1–64 字符
-- `icloud_email` 必填，`net/mail` 校验且地址值必须等于输入
-- `host` 只能是 `icloud.com` 或 `icloud.com.cn`（默认 `icloud.com`）
-- `proxy` 可选，必须是 `http`/`https`/`socks5` URL
-- `cookies` 可选，支持 Cookie Header 字符串或 JSON 文本
-- 无 Cookie 时状态为 `pending`，不访问网络
+- `name` 必填，去除空白後 1–64 個字元
+- `icloud_email` 必填，以 `net/mail` 驗證且位址值必須等於輸入
+- `host` 只能是 `icloud.com` 或 `icloud.com.cn`（預設 `icloud.com`）
+- `proxy` 可選，必須是 `http`/`https`/`socks5` URL
+- `cookies` 可選，支援 Cookie Header 字串或 JSON 文字
+- 無 Cookie 時狀態為 `pending`，不會存取網路
 
-**成功响应：** `201`，返回 `Summary`。
+**成功回應：** `201`，回傳 `Summary`。
 
-### 6. 编辑账号基本信息
+### 6. 編輯帳號基本資料
 
 ```http
 PATCH /api/accounts/:id
 X-CSRF-Token: <token>
 
-{"name": "新名称", "host": "icloud.com.cn"}
+{"name": "新名稱", "host": "icloud.com.cn"}
 ```
 
-只接受可选的 `name`、`icloud_email`、`host`，至少一个字段存在。响应返回更新后的 `Summary`。账号不存在返回 `404 ACCOUNT_NOT_FOUND`。
+只接受可選的 `name`、`icloud_email`、`host`，至少須存在一個欄位。回應會回傳更新後的 `Summary`。帳號不存在時回傳 `404 ACCOUNT_NOT_FOUND`。
 
 ### 7. 更新代理
 
@@ -162,7 +162,7 @@ X-CSRF-Token: <token>
 {"proxy": "http://user:pass@host:port"}
 ```
 
-空字符串表示清除代理。响应只返回更新后的 `Summary`（代理值从不回显）。
+空字串表示清除代理。回應只回傳更新後的 `Summary`（代理值從不回顯）。
 
 ### 8. 更新 Cookie
 
@@ -173,15 +173,15 @@ X-CSRF-Token: <token>
 {"cookies": "a=1; b=2"}
 ```
 
-`cookies` 同时兼容字符串与对象：
+`cookies` 同時相容字串與物件：
 
 ```json
 {"cookies": {"a": "1", "b": "2"}}
 ```
 
-两种输入最终都交给 `account.ParseCookieInput`。响应只返回更新后的 `Summary`。
+兩種輸入最終都會交給 `account.ParseCookieInput`。回應只回傳更新後的 `Summary`。
 
-### 9. 设置 App 专用密码
+### 9. 設定 App 專用密碼
 
 ```http
 POST /api/accounts/:id/password
@@ -190,73 +190,71 @@ X-CSRF-Token: <token>
 {"icloud_email": "your_email@icloud.com", "app_password": "xxxx-xxxx-xxxx-xxxx"}
 ```
 
-服务端会用 IMAP 连接验证凭据。成功返回 `Summary`；IMAP 验证失败返回 `502 UPSTREAM_FAILURE`。
+伺服器端會以 IMAP 連線驗證憑證。成功時回傳 `Summary`；IMAP 驗證失敗時回傳 `502 UPSTREAM_FAILURE`。
 
-### 10. iCloud 密码登录（获取 Cookie）
+### 10. iCloud 密碼登入（取得 Cookie）
 
 ```http
 POST /api/accounts/:id/login
 X-CSRF-Token: <token>
 
-{"password": "用户的常规iCloud密码", "otp_code": "123456"}
+{"password": "使用者的一般 iCloud 密碼", "otp_code": "123456"}
 ```
 
-- `otp_code` 可选，启用 2FA 时使用
+- `otp_code` 可選，啟用 2FA 時使用
 - 需要 OTP：`409 OTP_REQUIRED`
-- 验证码错误：`401 OTP_INVALID`
-- 成功：**只返回 `Summary`，绝不返回 Cookies**（Cookie 自动持久化到账号配置）
+- 驗證碼錯誤：`401 OTP_INVALID`
+- 成功：**只回傳 `Summary`，絕不回傳 Cookies**（Cookie 會自動持久化到帳號設定）
 
-### 11. 删除账号
+### 11. 刪除帳號
 
 ```http
 DELETE /api/accounts/:id
 X-CSRF-Token: <token>
 ```
 
-**响应：** `{"id": "acc_3"}`。不存在返回 `404 ACCOUNT_NOT_FOUND`。
+**回應：** `{"id": "acc_3"}`。不存在時回傳 `404 ACCOUNT_NOT_FOUND`。
 
----
+## 業務端點
 
-## 业务端点
-
-### 12. 创建 HME 别名
+### 12. 建立 HME 別名
 
 ```http
 POST /api/create
 X-CSRF-Token: <token>
 
-{"account_id": "acc_1", "label": "注册某网站"}
+{"account_id": "acc_1", "label": "註冊某網站"}
 ```
 
 - `account_id` 必填
-- `label` 可选，最长 200 字符
+- `label` 可選，最長 200 個字元
 
-**响应：**
+**回應：**
 
 ```json
 {
   "success": true,
   "data": {
     "email": "xyz123@icloud.com",
-    "label": "注册某网站",
+    "label": "註冊某網站",
     "created_at": "2026-01-15T10:30:00+08:00",
     "account_id": "acc_1"
   }
 }
 ```
 
-### 13. 读取邮件
+### 13. 讀取郵件
 
 ```http
 GET /api/inbox?account_id=acc_1&alias=xyz123@icloud.com&limit=20&days=7
 ```
 
 - `account_id` 必填
-- `alias` 可选，只返回发给该别名的邮件
-- `limit` 1–100（默认 20）
-- `days` 1–90（默认 7）；非法整数直接 `400 VALIDATION_ERROR`
+- `alias` 可選，只回傳寄給該別名的郵件
+- `limit` 1–100（預設 20）
+- `days` 1–90（預設 7）；非法的整數會直接回傳 `400 VALIDATION_ERROR`
 
-**响应（IMAP 优先，Web API 回退）：**
+**回應（IMAP 優先，Web API 回退）：**
 
 ```json
 {
@@ -280,15 +278,15 @@ GET /api/inbox?account_id=acc_1&alias=xyz123@icloud.com&limit=20&days=7
 }
 ```
 
-`method` 为 `imap` 或 `web_api`。IMAP 路径支持服务端按收件人搜索；Web API 路径拉取后本地过滤。
+`method` 為 `imap` 或 `web_api`。IMAP 路徑支援伺服器端依收件人搜尋；Web API 路徑會先拉取再於本機過濾。
 
-### 14. 列出别名
+### 14. 列出別名
 
 ```http
 GET /api/aliases?account_id=acc_1
 ```
 
-**响应：** alias 对象字段风格为 camelCase（兼容 iCloud 原始格式）：
+**回應：** alias 物件的欄位風格為 camelCase（相容 iCloud 原始格式）：
 
 ```json
 {
@@ -300,7 +298,7 @@ GET /api/aliases?account_id=acc_1
       {
         "email": "xyz123@icloud.com",
         "anonymousId": "abc123",
-        "label": "注册某网站",
+        "label": "註冊某網站",
         "active": true,
         "createdAt": "2026-01-15T10:30:00Z"
       }
@@ -309,7 +307,7 @@ GET /api/aliases?account_id=acc_1
 }
 ```
 
-### 15. 停用/激活/删除别名
+### 15. 停用/啟用/刪除別名
 
 ```http
 POST /api/aliases/:id/deactivate
@@ -320,96 +318,220 @@ X-CSRF-Token: <token>
 {"account_id": "acc_1"}
 ```
 
-- `:id` 为别名的 `anonymousId`，非空且 URL 解码后不超过 256 字符
+- `:id` 為別名的 `anonymousId`，不可為空且 URL 解碼後不超過 256 個字元
 - `account_id` 必填
-- 删除不可恢复；直接删除失败时会先停用再删
+- 刪除後無法復原；直接刪除失敗時會先停用再刪除
 
-### 16. 重新加载配置
+### 16. 建立隨機信箱（臨時別名）
+
+```http
+POST /api/temp
+X-CSRF-Token: <token>
+
+{"account_id": "acc_1"}
+```
+
+- `account_id` 可省略；省略時使用第一個有 Cookie 的帳號
+- 只有**有 Cookie** 的帳號能用來建立隨機信箱（App 專用密碼只能拿來登入換 Cookie，本身不足以呼叫 HME 介面）
+- 別名本身由 iCloud 隨機產生；本服務只負責產生好辨識的隨機標籤（格式 `temp-<word>-<word>-<四位數>`，例如 `temp-jade-reef-4821`）
+- 預設 **24 小時後自動刪除**，可手動立即刪除，也可標記為**不自動刪除**
+- 到期刪除由**伺服器的背景清理程式**執行（每分鐘檢查一次），不依賴瀏覽器是否開著
+- 開啟「隨機信箱」頁面時，若目前沒有任何追蹤中的隨機信箱，會自動建立一個
+
+**回應：** `TempMailbox`。沒有任何有 Cookie 的帳號可用，或指定帳號沒有 Cookie 時回傳 `400 VALIDATION_ERROR`（訊息會引導使用者前往「帳號管理」處理）；`account_id` 不存在時回傳 `404 ACCOUNT_NOT_FOUND`。
+
+### 17. 列出隨機信箱
+
+```http
+GET /api/temp
+```
+
+**回應：**
+
+```json
+{
+  "success": true,
+  "data": {
+    "count": 2,
+    "mailboxes": [
+      {
+        "id": "abc123",
+        "email": "jade.reef.4821@icloud.com",
+        "account_id": "acc_xxx",
+        "label": "temp-jade-reef-4821",
+        "created_at": "2026-10-06T14:00:00Z",
+        "expires_at": "2026-10-07T14:00:00Z",
+        "keep": false,
+        "attempts": 0,
+        "last_error": ""
+      }
+    ],
+    "ttl_seconds": 86400
+  }
+}
+```
+
+`ttl_seconds` 為目前的自動刪除秒數（對應 `ICLOUD_HME_TEMP_TTL`，預設 86400 秒）。
+
+### 18. 切換隨機信箱是否自動刪除
+
+```http
+POST /api/temp/:id/keep
+X-CSRF-Token: <token>
+
+{"keep": true}
+```
+
+- `true` = 不自動刪除；`false` = 重新起算 TTL
+- 關閉「不自動刪除」（`keep=false`）時，到期時間會**從當下重新起算 24 小時**
+- `keep` 為 `true` 時，`expires_at` 是零值（`0001-01-01T00:00:00Z`）
+
+**回應：** `TempMailbox`。不在追蹤清單中時回傳 `404 NOT_FOUND`。
+
+### 19. 立即刪除隨機信箱
+
+```http
+DELETE /api/temp/:id
+X-CSRF-Token: <token>
+```
+
+**回應：**
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": "abc123",
+    "email": "jade.reef.4821@icloud.com",
+    "removed": true,
+    "upstream_warning": "iCloud 端刪除失敗的說明"
+  }
+}
+```
+
+- `upstream_warning` 只在 iCloud 端刪除失敗時出現
+- 不在追蹤清單中時回傳 `404 NOT_FOUND`
+
+**`TempMailbox` 物件：**
+
+```json
+{
+  "id": "別名的 anonymousId，刪除時使用",
+  "email": "jade.reef.4821@icloud.com",
+  "account_id": "acc_xxx",
+  "label": "temp-jade-reef-4821",
+  "created_at": "2026-10-06T14:00:00Z",
+  "expires_at": "2026-10-07T14:00:00Z",
+  "keep": false,
+  "attempts": 0,
+  "last_error": ""
+}
+```
+
+- `keep` 為 `true` 時 `expires_at` 是零值（`0001-01-01T00:00:00Z`）
+- `attempts` 為自動刪除的連續失敗次數；連續失敗 10 次後會停止追蹤，並在日誌留下訊息（避免上游已刪除的別名讓記錄永遠卡住）
+- 讀取隨機信箱的郵件請沿用既有的 `GET /api/inbox?account_id=<acc>&alias=<email>`，**沒有**專用的讀信端點
+- 追蹤記錄存放於 `<資料目錄>/temp_mailboxes.json`
+- 環境變數 `ICLOUD_HME_TEMP_TTL` 可調整自動刪除時間，預設 `24h`，允許範圍 `1m` 到 `720h`
+- 可能錯誤碼：`VALIDATION_ERROR`（400，沒有任何有 Cookie 的帳號可用，或指定帳號沒有 Cookie）、`ACCOUNT_NOT_FOUND`（404，`account_id` 不存在）、`NOT_FOUND`（404，隨機信箱不在追蹤清單中）、`UPSTREAM_FAILURE`（502，iCloud 端建立失敗或未回傳別名識別碼）
+- 本專案的不變式：**HTTP 401 只代表管理員工作階段失效**；上游 iCloud 的失敗一律使用 502，不可使用 401
+
+### 20. 重新載入設定
 
 ```http
 POST /api/reload
 X-CSRF-Token: <token>
 ```
 
-重新读取 `accounts.json`。
+重新讀取 `accounts.json`。
 
 ---
 
-## curl 使用示例（Cookie Jar + CSRF）
+## curl 使用範例（Cookie Jar + CSRF）
 
 ```bash
 BASE="http://localhost:8081"
 
-# 1. 登录,保存 Cookie 到 jar
+# 1. 登入，將 Cookie 儲存到 jar
 curl -c cookies.txt -X POST "$BASE/api/auth/login" \
   -H "Content-Type: application/json" \
-  -d '{"password":"你的管理员密码"}'
+  -d '{"password":"你的管理員密碼"}'
 
-# 2. 从响应中提取 csrf_token(可用 jq)
+# 2. 從回應中擷取 csrf_token(可用 jq)
 CSRF=$(curl -b cookies.txt "$BASE/api/auth/session" | jq -r '.data.csrf_token')
 
-# 3. 读取账号列表(GET 无需 CSRF)
+# 3. 讀取帳號清單(GET 無須 CSRF)
 curl -b cookies.txt "$BASE/api/accounts"
 
-# 4. 添加账号(mutation 需要 CSRF 头)
+# 4. 新增帳號(mutation 需要 CSRF 標頭)
 curl -b cookies.txt -X POST "$BASE/api/accounts" \
   -H "Content-Type: application/json" \
   -H "X-CSRF-Token: $CSRF" \
-  -d '{"name":"新账号","icloud_email":"owner@icloud.com"}'
+  -d '{"name":"新帳號","icloud_email":"owner@icloud.com"}'
 
-# 5. 创建别名
+# 5. 建立別名
 curl -b cookies.txt -X POST "$BASE/api/create" \
   -H "Content-Type: application/json" \
   -H "X-CSRF-Token: $CSRF" \
   -d '{"account_id":"acc_1","label":"GitHub"}'
 
-# 6. 读取邮件
+# 6. 讀取郵件
 curl -b cookies.txt "$BASE/api/inbox?account_id=acc_1&limit=10"
+
+# 7. 建立隨機信箱(省略 account_id 時使用第一個有 Cookie 的帳號)
+curl -b cookies.txt -X POST "$BASE/api/temp" \
+  -H "Content-Type: application/json" \
+  -H "X-CSRF-Token: $CSRF" \
+  -d '{"account_id":"acc_1"}'
+
+# 8. 列出追蹤中的隨機信箱
+curl -b cookies.txt "$BASE/api/temp"
 ```
 
 ---
 
-## 认证方式（iCloud 账号侧）
+## 認證方式（iCloud 帳號端）
 
-### Cookie 认证（功能最完整）
+### Cookie 認證（功能最完整）
 
-用于创建/停用/激活/删除别名、读取邮件（Web API 回退）。
+用於建立/停用/啟用/刪除別名、讀取郵件（Web API 回退）。
 
-**获取方式：**
-1. 浏览器登录 [icloud.com](https://www.icloud.com) 或 [icloud.com.cn](https://www.icloud.com.cn) (国区)
+**取得方式：**
+1. 以瀏覽器登入 [icloud.com](https://www.icloud.com) 或 [icloud.com.cn](https://www.icloud.com.cn)（中國區）
 2. F12 → Application → Cookies
-3. 导出 Cookie 为 `{"key":"value"}` JSON，粘贴到管理界面「更新 Cookie」
+3. 匯出 Cookie 為 `{"key":"value"}` JSON，貼到管理介面的「更新 Cookie」
 
-**关键 Cookie：** `X-APPLE-WEBAUTH-TOKEN`（认证 token）、`X-APPLE-WEBAUTH-USER`（含 dsid）、`X-APPLE-WEBAUTH-HSA-TRUST`（设备信任）、`X-APPLE-DS-WEB-SESSION-TOKEN`（会话）
+**關鍵 Cookie：** `X-APPLE-WEBAUTH-TOKEN`（認證 token）、`X-APPLE-WEBAUTH-USER`（含 dsid）、`X-APPLE-WEBAUTH-HSA-TRUST`（裝置信任）、`X-APPLE-DS-WEB-SESSION-TOKEN`（工作階段）
 
-**有效期：** 约 24 小时
+**有效期限：** 約 24 小時
 
-### App Password 认证（IMAP 优先读邮件）
+### App Password 認證（IMAP 優先讀取郵件）
 
-用于 IMAP 读取邮件（优先路径，支持服务端按收件人搜索）。在 [appleid.apple.com](https://appleid.apple.com) → 登录和安全 → App 专用密码 生成。
+用於 IMAP 讀取郵件（優先路徑，支援伺服器端依收件人搜尋）。在 [appleid.apple.com](https://appleid.apple.com) → 登入與安全性 → App 專用密碼 產生。
 
 ---
 
-## 技术说明
+## 技術說明
 
-**Web API 路径** (`internal/mail/web_client.go`)：
-1. 调用 `setup.icloud.com.cn/setup/ws/1/validate` 获取 `mccgateway` URL
-2. 调用 `mccgateway/mailws2/v1/thread/search` 读取邮件
+**Web API 路徑** (`internal/mail/web_client.go`)：
+1. 呼叫 `setup.icloud.com.cn/setup/ws/1/validate` 取得 `mccgateway` URL
+2. 呼叫 `mccgateway/mailws2/v1/thread/search` 讀取郵件
 
-**⚠️ 已知坑：**
-- `validate` 返回的 mccgateway URL 可能带 `:443` 端口，tls-client 的 cookie jar 按不带端口的 host 存储 cookie，带端口请求时 cookie 无法附加导致 403；**解决：** 解析 URL 后剥离端口号
+**⚠️ 已知問題：**
+- `validate` 回傳的 mccgateway URL 可能帶有 `:443` 連接埠，tls-client 的 cookie jar 是依不帶連接埠的 host 儲存 cookie，因此帶連接埠的請求會無法附加 cookie 而導致 403；**解決方式：** 解析 URL 後剝離連接埠號
 
-**IMAP 路径** (`internal/mail/client.go`)：标准 IMAP 协议，连接 `imap.mail.me.com:993`，需要 App Password。
+**IMAP 路徑** (`internal/mail/client.go`)：標準 IMAP 協定，連線 `imap.mail.me.com:993`，需要 App Password。
 
-**升级差异（相对旧版）：**
-- 全部 API 需要管理员登录（`401 AUTH_REQUIRED`）
-- 账号响应不再返回 Cookie/密码/代理原文，改用 `has_cookies`/`has_app_password`/`has_proxy`
-- `POST /api/accounts/:id/login` 成功响应不再返回 `cookies` 字段
-- `accounts.json` 使用 `{"accounts": {id: {...}}}` map wrapper 格式（参考 `accounts.json.template`）
+**升級差異（相對於舊版）：**
+- 全部 API 都需要管理員登入（`401 AUTH_REQUIRED`）
+- 帳號回應不再回傳 Cookie/密碼/代理原文，改用 `has_cookies`/`has_app_password`/`has_proxy`
+- `POST /api/accounts/:id/login` 成功回應不再回傳 `cookies` 欄位
+- `accounts.json` 使用 `{"accounts": {id: {...}}}` map wrapper 格式（參考 `accounts.json.template`）
 
 ## 限制
 
-- **创建频率**：iCloud 限制别名创建频率，过快会返回 429（服务端自动重试最多 5 次）
-- **Cookie 有效期**：约 24 小时，需定期更新
-- **邮件读取**：依赖 IMAP 连接，超时默认 30 秒
-- **请求体上限**：1 MiB
+- **建立頻率**：iCloud 會限制別名建立頻率，過快會回傳 429（伺服器端會自動重試最多 5 次）
+- **Cookie 有效期限**：約 24 小時，需定期更新
+- **郵件讀取**：依賴 IMAP 連線，逾時預設 30 秒
+- **隨機信箱**：預設 24 小時後由伺服器背景清理程式自動刪除，可用 `ICLOUD_HME_TEMP_TTL` 調整（範圍 `1m` 到 `720h`）
+- **請求主體大小上限**：1 MiB

@@ -1,20 +1,26 @@
 // Package server 提供 HTTP API,基於 Gin。
 //
-// 兩個核心介面:
+// 三個核心介面:
 //
 //	POST /api/create  — 在指定帳號下建立一個 Hide My Email 別名
 //	GET  /api/inbox   — 讀取指定帳號(或指定別名)收到的郵件
+//	POST /api/temp    — 建立隨機信箱(臨時別名),預設 24 小時後自動刪除
 //
 // 輔助介面(用於多帳號管理):帳號增刪查、別名列表、設定 App 密碼。
 //
 // 安全模型:除 /api/auth/login 與 /api/auth/session 外,所有 /api 路由都需要
 // 管理員工作階段;非 GET/HEAD/OPTIONS 請求還需校驗 CSRF。
+//
+// 不變式:HTTP 401 只用於表示管理員工作階段失效,上游 iCloud 的失敗一律回 502,
+// 否則前端會把上游錯誤誤判成登出(詳見 upstream_auth_test.go)。
 package server
 
 import (
 	"errors"
 	"io/fs"
+	"log"
 	"net/http"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -22,6 +28,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"icloud-hme/internal/account"
 	"icloud-hme/internal/auth"
+	"icloud-hme/internal/tempmail"
 	"icloud-hme/internal/webui"
 )
 
@@ -31,6 +38,10 @@ type Config struct {
 	AdminPassword string
 	SessionTTL    time.Duration
 	SecureCookie  bool
+	// DataDir 是隨機信箱記錄的存放目錄；空字串表示只存在記憶體（測試用）。
+	DataDir string
+	// TempTTL 是隨機信箱的自動刪除時間，預設 DefaultTempTTL。
+	TempTTL time.Duration
 }
 
 // Server 封裝 Gin 引擎、帳號後端與認證。
@@ -40,6 +51,9 @@ type Server struct {
 	limiter *auth.Limiter
 	cfg     Config
 	r       *gin.Engine
+	temp    *tempmail.Store
+	// clock 可注入時鐘，測試用來控制隨機信箱的到期判斷。
+	clock func() time.Time
 }
 
 // New 建立 Server。mgr 為帳號管理器,cfg 為安全配置。
@@ -58,10 +72,21 @@ func newWithBackend(be Backend, cfg Config) *Server {
 	if !cfg.Debug {
 		gin.SetMode(gin.ReleaseMode)
 	}
+	storePath := ""
+	if cfg.DataDir != "" {
+		storePath = filepath.Join(cfg.DataDir, tempmail.FileName)
+	}
+	store, err := tempmail.NewStore(storePath)
+	if err != nil {
+		// 記錄檔損毀不應該讓整個服務起不來：改用記憶體追蹤並留下明確訊息。
+		log.Printf("載入隨機信箱記錄失敗，改用記憶體追蹤：%v", err)
+		store, _ = tempmail.NewStore("")
+	}
 	s := &Server{
 		be:      be,
 		limiter: auth.NewLimiter(nil, 15*time.Minute, 5, 10000),
 		cfg:     cfg,
+		temp:    store,
 	}
 	s.auth, _ = auth.NewManager(auth.Options{
 		Password: cfg.AdminPassword,
@@ -121,6 +146,12 @@ func (s *Server) register() {
 			authed.POST("/aliases/:id/deactivate", csrfCheck(s.auth), s.deactivateAliasHandler)
 			authed.POST("/aliases/:id/reactivate", csrfCheck(s.auth), s.reactivateAliasHandler)
 			authed.DELETE("/aliases/:id", csrfCheck(s.auth), s.deleteAliasHandler)
+
+			// ===== 隨機信箱（臨時別名） =====
+			authed.POST("/temp", csrfCheck(s.auth), s.createTempMailboxHandler)
+			authed.GET("/temp", s.listTempMailboxesHandler)
+			authed.POST("/temp/:id/keep", csrfCheck(s.auth), s.keepTempMailboxHandler)
+			authed.DELETE("/temp/:id", csrfCheck(s.auth), s.deleteTempMailboxHandler)
 
 			// ===== 系統 =====
 			authed.POST("/reload", csrfCheck(s.auth), s.reloadConfigHandler)

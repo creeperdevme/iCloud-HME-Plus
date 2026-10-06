@@ -506,10 +506,27 @@ func (c *Client) Generate() (string, error) {
 	return hme, nil
 }
 
+// reserveResult 是 /v1/hme/reserve 解析後的結果。
+type reserveResult struct {
+	// Alias 是最終生效的信箱位址。
+	Alias string
+	// AnonymousID 是刪除/停用別名時要用的識別碼；上游沒回傳時為空字串。
+	AnonymousID string
+}
+
 // Reserve 保留/確認候選別名,使其正式生效。
 func (c *Client) Reserve(hme, label string) (string, error) {
+	r, err := c.reserve(hme, label)
+	return r.Alias, err
+}
+
+// reserve 與 Reserve 相同,但額外取回 anonymousId。
+//
+// anonymousId 是之後刪除別名唯一的識別碼,某些上游回應不會帶,因此這裡同時嘗試
+// 多種欄位名稱;呼叫端若拿到空字串,應自行用 ListAliases 以信箱反查。
+func (c *Client) reserve(hme, label string) (reserveResult, error) {
 	if err := c.resolveService(); err != nil {
-		return "", err
+		return reserveResult{}, err
 	}
 	if label == "" {
 		label = "Created " + time.Now().Format("2006-01-02 15:04")
@@ -522,12 +539,12 @@ func (c *Client) Reserve(hme, label string) (string, error) {
 	}
 	body, err := c.request("POST", c.serviceURL+"/v1/hme/reserve", payload, 0, 2)
 	if err != nil {
-		return "", err
+		return reserveResult{}, err
 	}
 	parsed := gjson.Parse(body)
 	if !parsed.Get("success").Bool() {
 		errMsg := parsed.Get("error.errorMessage").String()
-		return "", fmt.Errorf("保留失敗：%s", nonEmpty(errMsg, "unknown"))
+		return reserveResult{}, fmt.Errorf("保留失敗：%s", nonEmpty(errMsg, "unknown"))
 	}
 	alias := hme
 	resultHme := parsed.Get("result.hme")
@@ -536,8 +553,15 @@ func (c *Client) Reserve(hme, label string) (string, error) {
 			alias = v
 		}
 	}
+	anonymousID := firstNonEmpty(
+		resultHme.Get("anonymousId").String(),
+		resultHme.Get("anonymousID").String(),
+		resultHme.Get("id").String(),
+		resultHme.Get("metaData.anonymousId").String(),
+		parsed.Get("result.anonymousId").String(),
+	)
 	c.log("已保留：%s", alias)
-	return alias, nil
+	return reserveResult{Alias: alias, AnonymousID: anonymousID}, nil
 }
 
 // CreateResult 是 CreateAlias 的返回結果。
@@ -545,6 +569,8 @@ type CreateResult struct {
 	Email     string `json:"email"`
 	Label     string `json:"label"`
 	CreatedAt string `json:"created_at"`
+	// AnonymousID 用於之後刪除/停用這個別名；上游未回傳時會用別名列表反查。
+	AnonymousID string `json:"anonymous_id,omitempty"`
 }
 
 // CreateAlias 一步完成「產生 + 保留」,建立一個新別名。
@@ -572,7 +598,7 @@ func (c *Client) CreateAlias(label string, maxRetries int) (*CreateResult, error
 			}
 			break
 		}
-		email, err := c.Reserve(hme, label)
+		reserved, err := c.reserve(hme, label)
 		if err != nil {
 			lastErr = err.Error()
 			c.log("reserve 失敗：%s", lastErr)
@@ -582,16 +608,42 @@ func (c *Client) CreateAlias(label string, maxRetries int) (*CreateResult, error
 			}
 			break
 		}
+		anonymousID := reserved.AnonymousID
+		if anonymousID == "" {
+			// 上游沒有在 reserve 回應帶 anonymousId 時，用別名列表反查。
+			// 拿不到 ID 就無法在 24 小時後自動刪除，因此值得多花一次請求。
+			if resolved, lookupErr := c.lookupAnonymousID(reserved.Alias); lookupErr == nil {
+				anonymousID = resolved
+			} else {
+				c.log("反查 anonymousId 失敗：%v", lookupErr)
+			}
+		}
 		return &CreateResult{
-			Email:     email,
-			Label:     label,
-			CreatedAt: time.Now().Format(time.RFC3339),
+			Email:       reserved.Alias,
+			Label:       label,
+			CreatedAt:   time.Now().Format(time.RFC3339),
+			AnonymousID: anonymousID,
 		}, nil
 	}
 	if lastErr != "" {
 		return nil, fmt.Errorf("建立別名失敗：%s", lastErr)
 	}
 	return nil, fmt.Errorf("建立別名失敗，已重試 %d 次", maxRetries)
+}
+
+// lookupAnonymousID 用信箱位址在別名列表中反查 anonymousId。
+func (c *Client) lookupAnonymousID(email string) (string, error) {
+	aliases, err := c.ListAliases()
+	if err != nil {
+		return "", err
+	}
+	target := strings.ToLower(strings.TrimSpace(email))
+	for _, a := range aliases {
+		if strings.ToLower(a.Email) == target && a.AnonymousID != "" {
+			return a.AnonymousID, nil
+		}
+	}
+	return "", fmt.Errorf("別名列表中找不到 %s", email)
 }
 
 // DeactivateHME 停用別名(可恢復)。

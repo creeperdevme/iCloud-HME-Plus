@@ -74,3 +74,44 @@ export interface LoginResult {
   csrf_token: string
   expires_at: string
 }
+
+/**
+ * 隨機信箱（後端 /api/temp 的公開表示）。
+ *
+ * `keep === true` 時後端不會自動刪除，且 `expires_at` 是零值
+ * （`0001-01-01T00:00:00Z`）；UI 不可把它當成「已過期」。
+ */
+export interface TempMailbox {
+  /** 別名識別碼 */
+  id: string
+  /** 隨機信箱位址 */
+  email: string
+  account_id: string
+  /** 後端產生的可讀標籤，例如 temp-jade-reef-4821 */
+  label: string
+  /** RFC3339 */
+  created_at: string
+  /** RFC3339；`keep` 為 true 時是零值 */
+  expires_at: string
+  /** true = 不自動刪除 */
+  keep: boolean
+  attempts?: number
+  last_error?: string
+}
+
+/** GET /api/temp 的回應 */
+export interface TempMailboxList {
+  count: number
+  mailboxes: TempMailbox[]
+  /** 自動刪除的存活秒數（後端目前為 24 小時） */
+  ttl_seconds: number
+}
+
+/** DELETE /api/temp/:id 的回應 */
+export interface TempMailboxRemoval {
+  id: string
+  email: string
+  removed: boolean
+  /** 本機已停止追蹤，但 iCloud 端刪除失敗時的原因 */
+  upstream_warning?: string
+}

@@ -1,5 +1,5 @@
 /* ==========================================================================
-   iCloud Hide My Email Dashboard — 設計系統
+   iCloud HME Plus — 設計系統
    ========================================================================== */
 
 :root {
@@ -147,15 +147,23 @@ a:hover {
 }
 
 .brand-mark {
-  display: grid;
-  place-items: center;
+  display: block;
   width: 38px;
   height: 38px;
   flex: 0 0 38px;
   border-radius: 11px;
-  background: linear-gradient(135deg, #2f7cf6, #0a84ff);
-  color: #fff;
-  box-shadow: 0 6px 16px rgba(10, 132, 255, 0.35);
+}
+
+/*
+ * Logo 本身就是 SVG（自帶漸層底與圓角），這裡只負責尺寸。
+ * 陰影用 drop-shadow 而非 box-shadow，才會貼著 logo 的實際輪廓，
+ * 而不是貼在比較大的外框上。
+ */
+.brand-mark > svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  filter: drop-shadow(0 6px 14px rgba(10, 132, 255, 0.32));
 }
 
 .brand-text {
@@ -1159,6 +1167,76 @@ input[data-filled='true'] {
   text-overflow: ellipsis;
   white-space: nowrap;
   color: var(--text-2);
+}
+
+/* ==========================================================================
+   隨機信箱
+   ========================================================================== */
+
+.temp-address {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+}
+
+.temp-address-value {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--font-mono);
+  font-size: 18px;
+  font-weight: 620;
+  letter-spacing: -0.01em;
+  color: var(--text);
+  word-break: break-all;
+  user-select: all;
+}
+
+.temp-countdown {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 12px;
+  font-size: 13px;
+  color: var(--text-2);
+}
+
+.temp-countdown.is-urgent {
+  color: var(--warning);
+  font-weight: 620;
+}
+
+.temp-countdown.is-kept {
+  color: var(--success);
+  font-weight: 620;
+}
+
+.temp-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13.5px;
+  font-weight: 550;
+  cursor: pointer;
+  user-select: none;
+}
+
+.temp-switch input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+@media (max-width: 560px) {
+  .temp-address-value {
+    font-size: 15px;
+  }
 }
 
 /* ==========================================================================

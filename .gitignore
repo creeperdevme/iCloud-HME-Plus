@@ -26,4 +26,6 @@ reverse_task/
 js
 accounts.json
 *.exe
+# Go 在 Windows 上覆寫執行中的執行檔時留下的備份
+*.exe~
 build/

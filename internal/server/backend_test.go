@@ -43,6 +43,12 @@ type fakeBackend struct {
 	aliasDeleteErr error
 	listInboxQuery InboxQuery
 	reloadCount    int
+
+	// 隨機信箱相關:建立參數與刪除呼叫紀錄。
+	createdAccountID string
+	createdLabel     string
+	createdErr       error
+	aliasDeleteCalls []string
 }
 
 func (f *fakeBackend) ListAccounts() []account.Summary { return f.accounts }
@@ -108,6 +114,10 @@ func (f *fakeBackend) RemoveAccount(id string) bool {
 }
 
 func (f *fakeBackend) CreateAlias(accountID, label string) (*hme.CreateResult, error) {
+	f.createdAccountID, f.createdLabel = accountID, label
+	if f.createdErr != nil {
+		return nil, f.createdErr
+	}
 	return f.created, nil
 }
 
@@ -122,6 +132,7 @@ func (f *fakeBackend) SetAliasActive(accountID, anonymousID string, active bool)
 
 func (f *fakeBackend) DeleteAlias(accountID, anonymousID string) error {
 	f.aliasDeleteID = anonymousID
+	f.aliasDeleteCalls = append(f.aliasDeleteCalls, anonymousID)
 	return f.aliasDeleteErr
 }
 

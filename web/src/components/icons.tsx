@@ -1,3 +1,4 @@
+import { useId } from 'react'
 import type { SVGProps } from 'react'
 
 type IconProps = SVGProps<SVGSVGElement> & { size?: number }
@@ -241,6 +242,71 @@ export function IconSparkles(props: IconProps) {
     <svg {...base(props)}>
       <path d="M12 3l1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6z" />
       <path d="M18 15l.8 2.2L21 18l-2.2.8L18 21l-.8-2.2L15 18l2.2-.8z" />
+    </svg>
+  )
+}
+
+/** 隨機信箱：信封加上時鐘，表示「會自動到期的臨時信箱」。 */
+export function IconTempMail(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <rect x="1.5" y="4" width="17" height="12.5" rx="2.5" />
+      <path d="M2.2 6.6l7.8 4.9 7.8-4.9" />
+      <circle cx="18.3" cy="18" r="4.2" />
+      <path d="M18.3 16.4v1.7l1.3.8" />
+    </svg>
+  )
+}
+
+/**
+ * iCloud Mail 風格的品牌標誌。
+ *
+ * 這是**自繪的近似圖示**，不是 Apple 官方素材，也不是從系統或 App 抽取的
+ * 資源：藍色漸層圓角方形底 + 白色信封 + 白色雲朵（三顆重疊圓形）+
+ * 藍色 V 字折線。僅取其視覺意象，商標仍屬 Apple Inc. 所有。
+ *
+ * 與其它 icon 的 props 慣例一致：支援 `size`、`className` 與任意 SVG 屬性，
+ * 預設 `aria-hidden="true"`（呼叫端可自行覆寫）。
+ */
+export function IconICloudMailLogo({ size = 40, ...props }: IconProps) {
+  // 漸層 id 必須在整份文件內唯一，否則同頁多個實例會互相蓋掉。
+  const gradientId = useId()
+
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 64 64"
+      fill="none"
+      aria-hidden="true"
+      {...props}
+    >
+      <defs>
+        <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#4DA2FF" />
+          <stop offset="100%" stopColor="#0B6EF3" />
+        </linearGradient>
+      </defs>
+
+      {/* 漸層圓角方形底 */}
+      <rect x="4" y="4" width="56" height="56" rx="14" fill={`url(#${gradientId})`} />
+
+      {/* 白色雲朵：三顆重疊圓形，讓信封看起來放在雲上 */}
+      <circle cx="22" cy="44" r="8" fill="#FFFFFF" />
+      <circle cx="32" cy="41" r="10" fill="#FFFFFF" />
+      <circle cx="42" cy="44.5" r="7.5" fill="#FFFFFF" />
+
+      {/* 白色信封本體 */}
+      <rect x="15" y="21" width="34" height="23" rx="4" fill="#FFFFFF" />
+
+      {/* 藍色 V 字折線 */}
+      <path
+        d="M18 24.5L32 34l14-9.5"
+        stroke="#0B6EF3"
+        strokeWidth="2.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   )
 }
