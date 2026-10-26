@@ -64,6 +64,10 @@ export default function AppShell() {
             <IconInbox size={18} />
             <span>收件匣</span>
           </NavLink>
+          <NavLink to="/integrations" className={({ isActive }) => (isActive ? 'nav-item active' : 'nav-item')}>
+            <span aria-hidden="true">⚙</span>
+            <span>設定</span>
+          </NavLink>
         </nav>
 
         <div className="sidebar-foot">

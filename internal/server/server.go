@@ -27,8 +27,10 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"icloud-hme/internal/account"
+	"icloud-hme/internal/apikey"
 	"icloud-hme/internal/auth"
 	"icloud-hme/internal/tempmail"
+	"icloud-hme/internal/webhook"
 	"icloud-hme/internal/webui"
 )
 
@@ -46,12 +48,14 @@ type Config struct {
 
 // Server 封裝 Gin 引擎、帳號後端與認證。
 type Server struct {
-	be      Backend
-	auth    *auth.Manager
-	limiter *auth.Limiter
-	cfg     Config
-	r       *gin.Engine
-	temp    *tempmail.Store
+	be       Backend
+	auth     *auth.Manager
+	limiter  *auth.Limiter
+	cfg      Config
+	r        *gin.Engine
+	temp     *tempmail.Store
+	keys     *apikey.Store
+	webhooks *webhook.Store
 	// clock 可注入時鐘，測試用來控制隨機信箱的到期判斷。
 	clock func() time.Time
 }
@@ -82,12 +86,14 @@ func newWithBackend(be Backend, cfg Config) *Server {
 		log.Printf("載入隨機信箱記錄失敗，改用記憶體追蹤：%v", err)
 		store, _ = tempmail.NewStore("")
 	}
-	s := &Server{
-		be:      be,
-		limiter: auth.NewLimiter(nil, 15*time.Minute, 5, 10000),
-		cfg:     cfg,
-		temp:    store,
+	keyPath, webhookPath := "", ""
+	if cfg.DataDir != "" {
+		keyPath = filepath.Join(cfg.DataDir, apikey.FileName)
+		webhookPath = filepath.Join(cfg.DataDir, webhook.FileName)
 	}
+	keys, _ := apikey.New(keyPath)
+	webhooks, _ := webhook.New(webhookPath)
+	s := &Server{be: be, limiter: auth.NewLimiter(nil, 15*time.Minute, 5, 10000), cfg: cfg, temp: store, keys: keys, webhooks: webhooks}
 	s.auth, _ = auth.NewManager(auth.Options{
 		Password: cfg.AdminPassword,
 		TTL:      cfg.SessionTTL,
@@ -115,12 +121,23 @@ func (s *Server) register() {
 		// ===== 認證(公開) =====
 		api.POST("/auth/login", s.handleLogin)
 		api.GET("/auth/session", s.handleSession)
+		api.GET("/mcp", s.handleMCPInfo)
+		api.POST("/mcp", s.handleMCP)
 
 		// ===== 受保護路由:統一 requireSession =====
 		authed := api.Group("")
 		authed.Use(requireSession(s.auth))
 		{
 			authed.POST("/auth/logout", csrfCheck(s.auth), s.handleLogout)
+			authed.GET("/api-keys", s.listAPIKeys)
+			authed.POST("/api-keys", csrfCheck(s.auth), s.createAPIKey)
+			authed.DELETE("/api-keys/:id", csrfCheck(s.auth), s.revokeAPIKey)
+			authed.GET("/webhooks", s.listWebhooks)
+			authed.GET("/webhooks/examples", s.webhookExamples)
+			authed.POST("/webhooks", csrfCheck(s.auth), s.createWebhook)
+			authed.PATCH("/webhooks/:id", csrfCheck(s.auth), s.updateWebhook)
+			authed.DELETE("/webhooks/:id", csrfCheck(s.auth), s.deleteWebhook)
+			authed.POST("/webhooks/:id/test", csrfCheck(s.auth), s.testWebhook)
 
 			// ===== 帳號管理 =====
 			authed.GET("/accounts", s.listAccountsHandler)
@@ -254,6 +271,13 @@ func (s *Server) listInboxHandler(c *gin.Context) {
 	if err != nil {
 		backendFail(c, err)
 		return
+	}
+	for _, message := range result.Messages {
+		payload := gin.H{"account_id": result.AccountID, "message_id": message.ID, "from": message.From, "to": message.To, "subject": message.Subject, "date": message.Date, "preview": message.Preview, "verification_code": message.VerificationCode}
+		_ = s.webhooks.Dispatch("email_received", payload)
+		if message.VerificationCode != "" {
+			_ = s.webhooks.Dispatch("verification_code", payload)
+		}
 	}
 	ok(c, result)
 }

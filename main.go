@@ -16,6 +16,8 @@
 // 安全配置(必填):
 //
 //	ICLOUD_HME_ADMIN_PASSWORD      管理員密碼,至少 8 字元(行程啟動後從環境清除)
+//
+//	API Key、Webhook 設定會儲存於資料目錄的 api_keys.json / webhooks.json。
 //	ICLOUD_HME_SESSION_TTL         工作階段有效期,預設 12h,範圍 15m-168h
 //	ICLOUD_HME_SECURE_COOKIE       TLS 反向代理部署時設為 true
 //	ICLOUD_HME_TEMP_TTL            隨機信箱自動刪除時間,預設 24h,範圍 1m-720h

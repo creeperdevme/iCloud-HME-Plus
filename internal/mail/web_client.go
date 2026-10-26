@@ -217,12 +217,10 @@ func (c *WebClient) search(payload string) ([]Message, error) {
 		if t.Timestamp > 0 {
 			date = time.UnixMilli(t.Timestamp).Format(time.RFC3339)
 		}
+		preview := sanitizePreview(t.Preview)
 		messages = append(messages, Message{
-			ID:      t.ThreadID,
-			From:    from,
-			Subject: t.Subject,
-			Preview: sanitizePreview(t.Preview),
-			Date:    date,
+			ID: t.ThreadID, From: from, Subject: t.Subject, Preview: preview, Date: date,
+			VerificationCode: ExtractVerificationCode(t.Subject, preview),
 		})
 	}
 	return messages, nil

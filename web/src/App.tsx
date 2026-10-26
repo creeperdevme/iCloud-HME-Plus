@@ -7,6 +7,7 @@ import AccountsPage from './pages/AccountsPage'
 import TempMailPage from './pages/TempMailPage'
 import AliasesPage from './pages/AliasesPage'
 import InboxPage from './pages/InboxPage'
+import IntegrationsPage from './pages/IntegrationsPage'
 
 function ProtectedLayout() {
   const { status } = useAuth()
@@ -35,6 +36,7 @@ export default function App() {
               <Route path="/temp" element={<TempMailPage />} />
               <Route path="/aliases" element={<AliasesPage />} />
               <Route path="/inbox" element={<InboxPage />} />
+              <Route path="/integrations" element={<IntegrationsPage />} />
               <Route path="*" element={<Navigate to="/accounts" replace />} />
             </Route>
           </Routes>

@@ -58,6 +58,7 @@ export interface InboxMessage {
   subject: string
   date: string
   preview: string
+  verification_code?: string
 }
 
 export interface FullMessage extends InboxMessage {

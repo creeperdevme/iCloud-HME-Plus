@@ -35,6 +35,7 @@ type Message struct {
 	Subject string `json:"subject"`
 	Date    string `json:"date"`
 	Preview string `json:"preview"`
+	VerificationCode string `json:"verification_code,omitempty"`
 }
 
 // FullMessage 是一封郵件的完整內容(含正文)。
@@ -486,6 +487,7 @@ func toMessageWithBody(msg *imap.Message) Message {
 			continue
 		}
 		m.Preview = strings.TrimSpace(body)
+		m.VerificationCode = ExtractVerificationCode(m.Subject, m.Preview)
 		break
 	}
 	return m
