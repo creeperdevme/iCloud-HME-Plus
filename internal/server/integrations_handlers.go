@@ -3,8 +3,6 @@ package server
 import (
 	"github.com/gin-gonic/gin"
 	"icloud-hme/internal/webhook"
-	"net/http"
-	"strings"
 )
 
 func (s *Server) listAPIKeys(c *gin.Context) { ok(c, s.keys.List()) }
@@ -77,33 +75,4 @@ func (s *Server) testWebhook(c *gin.Context) {
 		return
 	}
 	ok(c, gin.H{"sent": true})
-}
-
-func (s *Server) handleMCPInfo(c *gin.Context) {
-	ok(c, gin.H{"name": "iCloud HME MCP Server", "transport": "HTTP", "endpoint": "/api/mcp", "authentication": "Bearer API key", "tools": []string{"list_accounts", "create_alias", "list_inbox", "get_verification_code"}})
-}
-func (s *Server) handleMCP(c *gin.Context) {
-	authz := c.GetHeader("Authorization")
-	if !strings.HasPrefix(authz, "Bearer ") {
-		failCode(c, http.StatusUnauthorized, "AUTH_REQUIRED", "需要 Bearer API Key")
-		return
-	}
-	if _, valid := s.keys.Authenticate(strings.TrimSpace(strings.TrimPrefix(authz, "Bearer "))); !valid {
-		failCode(c, http.StatusUnauthorized, "INVALID_API_KEY", "API Key 無效")
-		return
-	}
-	var req struct {
-		Method string         `json:"method"`
-		Params map[string]any `json:"params"`
-	}
-	if c.ShouldBindJSON(&req) != nil {
-		failCode(c, 400, "VALIDATION_ERROR", "MCP 請求格式錯誤")
-		return
-	}
-	switch req.Method {
-	case "tools/list":
-		ok(c, gin.H{"tools": []any{gin.H{"name": "list_accounts"}, gin.H{"name": "create_alias"}, gin.H{"name": "list_inbox"}, gin.H{"name": "get_verification_code"}}})
-	default:
-		failCode(c, 404, "MCP_METHOD_NOT_FOUND", "MCP 方法不存在")
-	}
 }

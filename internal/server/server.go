@@ -121,8 +121,10 @@ func (s *Server) register() {
 		// ===== 認證(公開) =====
 		api.POST("/auth/login", s.handleLogin)
 		api.GET("/auth/session", s.handleSession)
-		api.GET("/mcp", s.handleMCPInfo)
+		// MCP 以 API Key 認證,不走管理員工作階段(見 mcp.go)
 		api.POST("/mcp", s.handleMCP)
+		api.GET("/mcp", mcpMethodNotAllowed)
+		api.DELETE("/mcp", mcpMethodNotAllowed)
 
 		// ===== 受保護路由:統一 requireSession =====
 		authed := api.Group("")

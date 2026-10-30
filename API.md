@@ -25,7 +25,7 @@ HTTP JSON API，所有介面回傳統一格式：
 
 **安全約定：**
 
-- 除 `POST /api/auth/login` 與 `GET /api/auth/session` 外，所有 `/api` 介面都需要管理員工作階段
+- 除 `POST /api/auth/login`、`GET /api/auth/session` 與 MCP 端點（`/api/mcp`，改用 API Key 認證，見下方「MCP 端點」）外，所有 `/api` 介面都需要管理員工作階段
 - 非 GET/HEAD/OPTIONS 請求必須攜帶 `X-CSRF-Token` 請求標頭
 - 工作階段 Cookie：`hme_session`，`Path=/`、`HttpOnly`、`SameSite=Strict`；TLS 部署時設定 `ICLOUD_HME_SECURE_COOKIE=true` 以啟用 `Secure`
 - 任何帳號回應**絕不包含** `cookies`、`app_password`、`proxy` 欄位（代理只暴露 `has_proxy` 布林值）
@@ -472,6 +472,42 @@ X-CSRF-Token: <token>
 ```
 
 重新讀取 `accounts.json`。
+
+---
+
+## MCP 端點
+
+`POST /api/mcp` 是標準的 [MCP](https://modelcontextprotocol.io) Streamable HTTP 伺服器，可直接接到 Claude Code、Hermes、Cursor 等 MCP 用戶端。
+
+- **認證**：`Authorization: Bearer <API_KEY>`，API Key 在網頁「設定」頁建立；Key 無效時回 401 並帶 `WWW-Authenticate: Bearer`
+- **協定**：JSON-RPC 2.0，支援 `initialize` 握手的版本 `2025-11-25`、`2025-06-18`、`2025-03-26`、`2024-11-05`
+- **無狀態**：不發 `Mcp-Session-Id`、不提供 SSE；請求一律回 `application/json`，通知回 `202`；`GET` / `DELETE` 回 `405`
+- **回應格式**：MCP 端點只回 JSON-RPC（`{jsonrpc, id, result | error}`），**不使用**上方的 `{success, data}` 格式
+
+| 工具 | 必填參數 | 選填參數 | 說明 |
+| --- | --- | --- | --- |
+| `list_accounts` | — | — | 列出帳號（安全摘要，不含機密），取得 `account_id` |
+| `create_alias` | `account_id` | `label` | 建立 HME 別名，回傳新信箱位址 |
+| `list_inbox` | `account_id` | `alias`、`limit`（1-100，預設 20）、`days`（1-90，預設 7） | 讀取收件匣，同 `GET /api/inbox` |
+| `get_verification_code` | `account_id` | `alias`、`days`（1-90，預設 1） | 回傳最新一封郵件中的驗證碼；找不到時 `found` 為 `false` |
+
+工具結果同時提供 `structuredContent`（物件）與 `content[0].text`（同一份 JSON 字串）。參數錯誤、帳號不存在、上游失敗等以 `isError: true` 的工具結果回傳，文字為 `<錯誤碼>: <訊息>`，錯誤碼與 REST 介面相同。
+
+用戶端設定範例（以 Claude Code 為例）：
+
+```bash
+claude mcp add --transport http icloud-hme https://<你的網域>/api/mcp \
+  --header "Authorization: Bearer <API_KEY>"
+```
+
+手動測試：
+
+```bash
+curl -s https://<你的網域>/api/mcp \
+  -H "Authorization: Bearer <API_KEY>" \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"list_accounts","arguments":{}}}'
+```
 
 ---
 
