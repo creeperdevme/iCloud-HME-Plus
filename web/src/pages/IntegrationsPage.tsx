@@ -184,7 +184,7 @@ export default function IntegrationsPage() {
             </tbody>
           </table>
         </div>
-        <p className="hint settings-footnote">MCP Endpoint：<code>/api/mcp</code> · 使用 <code>Authorization: Bearer &lt;API_KEY&gt;</code></p>
+        <p className="hint settings-footnote">MCP Endpoint：<code>{`${window.location.origin}/api/mcp`}</code> · 使用 <code>Authorization: Bearer &lt;API_KEY&gt;</code></p>
       </section>
 
       <section className="card settings-card">
