@@ -16,11 +16,21 @@ export function senderAddress(m: Sender): string {
   return m.original_from || m.from
 }
 
+/**
+ * 寄件人名稱；沒有名稱的寄件人常把位址本身當名稱
+ * （例如 "no-reply@qoder.com"），這種情況視為沒有名稱，避免重複顯示。
+ */
+export function senderName(m: Sender): string {
+  const name = m.from_name?.trim() ?? ''
+  return name.toLowerCase() === senderAddress(m).toLowerCase() ? '' : name
+}
+
 /** 單行顯示：「Name <address>」，缺哪個就只顯示另一個。 */
 export function formatSender(m: Sender): string {
   const address = senderAddress(m)
-  if (m.from_name && address) return `${m.from_name} <${address}>`
-  return m.from_name || address || '—'
+  const name = senderName(m)
+  if (name && address) return `${name} <${address}>`
+  return name || address || '—'
 }
 
 /** 有還原出原始寄件人時，回傳 iCloud 轉發位址的說明文字。 */

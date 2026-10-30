@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { formatSender, relayNote, senderAddress } from './sender'
+import { formatSender, relayNote, senderAddress, senderName } from './sender'
 
 const relay = 'noreply_at_tm_openai_com_w52g946f86yy7f_d9hy2897@icloud.com'
 
@@ -15,6 +15,12 @@ describe('sender', () => {
     expect(formatSender({ from: 'a@example.com' })).toBe('a@example.com')
     expect(formatSender({ from: 'a@example.com', from_name: 'A' })).toBe('A <a@example.com>')
     expect(relayNote({ from: 'a@example.com' })).toBeUndefined()
+  })
+
+  it('名稱就是位址時視為沒有名稱,不重複顯示', () => {
+    const m = { from: relay, from_name: 'No-Reply@qoder.com', original_from: 'no-reply@qoder.com' }
+    expect(senderName(m)).toBe('')
+    expect(formatSender(m)).toBe('no-reply@qoder.com')
   })
 
   it('缺少寄件人時顯示破折號', () => {
