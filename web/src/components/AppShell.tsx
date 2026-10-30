@@ -6,6 +6,7 @@ import {
   IconICloudMailLogo,
   IconInbox,
   IconLogout,
+  IconSettings,
   IconTempMail,
 } from './icons'
 
@@ -65,7 +66,7 @@ export default function AppShell() {
             <span>收件匣</span>
           </NavLink>
           <NavLink to="/integrations" className={({ isActive }) => (isActive ? 'nav-item active' : 'nav-item')}>
-            <span aria-hidden="true">⚙</span>
+            <IconSettings size={18} />
             <span>設定</span>
           </NavLink>
         </nav>
