@@ -11,10 +11,13 @@ import (
 //	noreply_at_tm_openai_com_w52g946f86yy7f_d9hy2897@icloud.com → noreply@tm.openai.com
 //
 // 格式為「原帳號_at_網域(點換成底線)_亂碼_亂碼」。Apple 沒有公開這個格式,
-// 以上是從實際信件歸納的;比對不到就不還原,呼叫端照常顯示改寫後的位址。
+// 以上是從實際信件歸納的:原帳號的 . + _ 都原樣保留,只有網域的點換成底線。
+// 比對不到就不還原,呼叫端照常顯示改寫後的位址。
 //
-// 原帳號本身含 _at_ 時無法與網域中的 at 區分,這裡取第一個 _at_。
-var relaySenderRE = regexp.MustCompile(`^(.+?)_at_([A-Za-z0-9-]+(?:_[A-Za-z0-9-]+)+)_[a-z0-9]+_[a-z0-9]+$`)
+// 原帳號含 _at_ 時與網域中間的 at 無法區分,這裡取最後一個 _at_:
+// john_at_doe@x.com 能還原(匿名轉寄服務常用這種寄件位址),
+// 代價是 foo@at.example.com 會被還原成 foo_at@example.com。
+var relaySenderRE = regexp.MustCompile(`^(.+)_at_([A-Za-z0-9-]+(?:_[A-Za-z0-9-]+)+)_[a-z0-9]+_[a-z0-9]+$`)
 
 // DecodeRelaySender 把 iCloud 轉發改寫的寄件人還原成原始位址;不是轉發位址時回傳空字串。
 func DecodeRelaySender(addr string) string {
