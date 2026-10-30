@@ -356,6 +356,31 @@ describe('InboxPage', () => {
     expect(within(screen.getByRole('table')).queryByText('預覽內容')).toBeNull()
   })
 
+  it('iCloud 轉發的信顯示原始寄件人,轉發位址放在提示', async () => {
+    const relay = 'noreply_at_tm_openai_com_w52g946f86yy7f_d9hy2897@icloud.com'
+    server.use(
+      accountsHandler(),
+      aliasesHandler(),
+      http.get('/api/inbox', () =>
+        HttpResponse.json({
+          success: true,
+          data: {
+            ...inboxResult,
+            messages: [
+              { ...inboxResult.messages[0], from: relay, from_name: 'OpenAI', original_from: 'noreply@tm.openai.com' },
+            ],
+          },
+        }),
+      ),
+    )
+    renderPage()
+    const name = await screen.findByText('OpenAI')
+    const table = within(screen.getByRole('table'))
+    expect(table.getByText('noreply@tm.openai.com')).toBeInTheDocument()
+    expect(table.queryByText(relay)).toBeNull()
+    expect(name.closest('td')).toHaveAttribute('title', `經 iCloud 轉發：${relay}`)
+  })
+
   it('顯示郵件總數', async () => {
     server.use(
       accountsHandler(),

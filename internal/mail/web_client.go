@@ -209,19 +209,19 @@ func (c *WebClient) search(payload string) ([]Message, error) {
 
 	messages := make([]Message, 0, len(result.ThreadList))
 	for _, t := range result.ThreadList {
-		from := ""
-		if len(t.Senders) > 0 {
-			from = t.Senders[0]
-		}
 		date := ""
 		if t.Timestamp > 0 {
 			date = time.UnixMilli(t.Timestamp).Format(time.RFC3339)
 		}
 		preview := sanitizePreview(t.Preview)
-		messages = append(messages, Message{
-			ID: t.ThreadID, From: from, Subject: t.Subject, Preview: preview, Date: date,
+		m := Message{
+			ID: t.ThreadID, Subject: t.Subject, Preview: preview, Date: date,
 			VerificationCode: ExtractVerificationCode(t.Subject, preview),
-		})
+		}
+		if len(t.Senders) > 0 {
+			m.setSenderFromHeader(t.Senders[0])
+		}
+		messages = append(messages, m)
 	}
 	return messages, nil
 }

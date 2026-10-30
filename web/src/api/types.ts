@@ -53,7 +53,11 @@ export interface Alias {
 /** 郵件摘要 */
 export interface InboxMessage {
   id: string
+  /** 信件上實際的寄件人；經隱藏郵件地址轉發的信是 iCloud 改寫後的位址 */
   from: string
+  from_name?: string
+  /** 從 iCloud 轉發位址推回的原始寄件人，只供顯示 */
+  original_from?: string
   to: string
   subject: string
   date: string

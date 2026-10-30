@@ -650,6 +650,12 @@ textarea {
   font-size: 12px;
 }
 
+/* iCloud 轉發位址很長且沒有斷點，獨佔一列並允許任意處換行 */
+.relay-note {
+  grid-column: 1 / -1;
+  overflow-wrap: anywhere;
+}
+
 .form-row {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));

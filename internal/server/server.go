@@ -275,7 +275,7 @@ func (s *Server) listInboxHandler(c *gin.Context) {
 		return
 	}
 	for _, message := range result.Messages {
-		payload := gin.H{"account_id": result.AccountID, "message_id": message.ID, "from": message.From, "to": message.To, "subject": message.Subject, "date": message.Date, "preview": message.Preview, "verification_code": message.VerificationCode}
+		payload := gin.H{"account_id": result.AccountID, "message_id": message.ID, "from": message.From, "from_name": message.FromName, "original_from": message.OriginalFrom, "to": message.To, "subject": message.Subject, "date": message.Date, "preview": message.Preview, "verification_code": message.VerificationCode}
 		_ = s.webhooks.Dispatch("email_received", payload)
 		if message.VerificationCode != "" {
 			_ = s.webhooks.Dispatch("verification_code", payload)

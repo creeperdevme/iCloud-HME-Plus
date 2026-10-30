@@ -11,8 +11,10 @@ import type {
 import AsyncState from '../components/AsyncState'
 import Dialog from '../components/Dialog'
 import ConfirmDialog from '../components/ConfirmDialog'
+import SenderCell from '../components/SenderCell'
 import { useToast } from '../components/ToastProvider'
 import { IconInbox, IconMail, IconRefresh, IconTrash } from '../components/icons'
+import { formatSender, relayNote } from '../utils/sender'
 
 function formatDate(raw: string): string {
   const d = new Date(raw)
@@ -306,9 +308,7 @@ export default function InboxPage() {
             <tbody>
               {messages.map((message) => (
                 <tr key={message.id}>
-                  <td>
-                    <span className="cell-strong">{message.from || '—'}</span>
-                  </td>
+                  <SenderCell message={message} />
                   <td>
                     <div className="preview-cell">
                       <span className="cell-strong">{message.subject || '(無主旨)'}</span>
@@ -351,9 +351,10 @@ export default function InboxPage() {
         {detail && (
           <>
             <div className="form-row">
-              <p className="hint">寄件人：{detail.from || '—'}</p>
+              <p className="hint">寄件人：{formatSender(detail)}</p>
               <p className="hint">收件人：{detail.to || '—'}</p>
               <p className="hint">日期：{formatDate(detail.date)}</p>
+              {relayNote(detail) && <p className="hint relay-note">{relayNote(detail)}</p>}
             </div>
             <pre className="mail-body">{detail.body || '（無內文）'}</pre>
             <div className="form-actions">

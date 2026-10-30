@@ -243,7 +243,7 @@ var mcpTools = []mcpTool{
 	{
 		Name:        "list_inbox",
 		Title:       "List inbox",
-		Description: "List recent emails in an account's inbox. Each message has id, from, to, subject, date, a text preview and verification_code when a one-time code was detected.",
+		Description: "List recent emails in an account's inbox. Each message has id, from, from_name, to, subject, date, a text preview and verification_code when a one-time code was detected. Mail forwarded through Hide My Email has from rewritten to an @icloud.com relay address; original_from then holds the real sender (e.g. noreply@openai.com).",
 		InputSchema: mcpObjectSchema(map[string]any{
 			"account_id": mcpAccountIDProp,
 			"alias":      mcpAliasProp,

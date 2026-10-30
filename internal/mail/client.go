@@ -29,12 +29,17 @@ const (
 
 // Message 是一封郵件的摘要資訊。
 type Message struct {
-	ID      string `json:"id"`
-	From    string `json:"from"`
-	To      string `json:"to"`
-	Subject string `json:"subject"`
-	Date    string `json:"date"`
-	Preview string `json:"preview"`
+	ID string `json:"id"`
+	// From 是信件上實際的寄件人位址;經隱藏郵件地址轉發的信會是 iCloud 改寫後的位址,
+	// 回信必須回到這個位址才不會暴露真實信箱。
+	From     string `json:"from"`
+	FromName string `json:"from_name,omitempty"`
+	// OriginalFrom 是從 From 推回的原始寄件人,只供顯示;不是轉發位址時為空。
+	OriginalFrom     string `json:"original_from,omitempty"`
+	To               string `json:"to"`
+	Subject          string `json:"subject"`
+	Date             string `json:"date"`
+	Preview          string `json:"preview"`
 	VerificationCode string `json:"verification_code,omitempty"`
 }
 
@@ -446,7 +451,8 @@ func toMessage(msg *imap.Message) Message {
 	}
 	if msg.Envelope != nil {
 		if len(msg.Envelope.From) > 0 {
-			m.From = msg.Envelope.From[0].Address()
+			from := msg.Envelope.From[0]
+			m.setSender(decodeHeader(from.PersonalName), decodeHeader(from.Address()))
 		}
 		if len(msg.Envelope.To) > 0 {
 			addrs := make([]string, 0, len(msg.Envelope.To))
@@ -459,9 +465,6 @@ func toMessage(msg *imap.Message) Message {
 		if !msg.Envelope.Date.IsZero() {
 			m.Date = msg.Envelope.Date.Format(time.RFC3339)
 		}
-	}
-	if m.From != "" {
-		m.From = decodeHeader(m.From)
 	}
 	if m.To != "" {
 		m.To = decodeHeader(m.To)
