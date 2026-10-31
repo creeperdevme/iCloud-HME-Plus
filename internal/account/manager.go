@@ -330,14 +330,32 @@ func (a *Account) validateCookies() {
 		}
 	}
 	if aliases, err := client.ListAliases(); err == nil {
-		a.AliasTotal = len(aliases)
-		for _, al := range aliases {
-			if al.Active {
-				a.AliasActive++
-			}
-		}
+		a.setAliasCounts(aliases)
 	}
 	a.LastValidated = time.Now().Format(time.RFC3339)
+}
+
+// setAliasCounts 依別名列表重算 AliasTotal / AliasActive。
+func (a *Account) setAliasCounts(aliases []hme.Alias) {
+	a.AliasTotal = len(aliases)
+	a.AliasActive = 0
+	for _, al := range aliases {
+		if al.Active {
+			a.AliasActive++
+		}
+	}
+}
+
+// UpdateAliasCounts 以最新別名列表更新帳號的別名統計並持久化。
+func (m *Manager) UpdateAliasCounts(id string, aliases []hme.Alias) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	acc, ok := m.accounts[id]
+	if !ok {
+		return fmt.Errorf("帳號不存在: %s", id)
+	}
+	acc.setAliasCounts(aliases)
+	return m.save()
 }
 
 // UpdateMetadata 編輯帳號基本資訊(名稱、iCloud 信箱、主機),至少提供一個欄位。
@@ -551,6 +569,7 @@ func (m *Manager) HMEClientWithPassword(id, password string, otpProvider hme.OTP
 		_ = m.SaveCookies(id, client.Cookies)
 		return nil, err
 	}
+	aliases, listErr := client.ListAliases()
 
 	// 儲存 validate 刷新後的 Cookie 和帳號狀態。
 	m.mu.Lock()
@@ -568,6 +587,9 @@ func (m *Manager) HMEClientWithPassword(id, password string, otpProvider hme.OTP
 		if cur.ICloudEmail == "" {
 			cur.ICloudEmail = deriveICloudEmail(info)
 		}
+	}
+	if listErr == nil {
+		cur.setAliasCounts(aliases)
 	}
 	saveErr := m.save()
 	m.mu.Unlock()
@@ -828,6 +850,9 @@ func (m *Manager) UpdateCookies(id string, cookies map[string]string) error {
 				snap.ICloudEmail = deriveICloudEmail(info)
 			}
 		}
+		if aliases, err := client.ListAliases(); err == nil {
+			snap.setAliasCounts(aliases)
+		}
 	}
 
 	m.mu.Lock()
@@ -841,6 +866,8 @@ func (m *Manager) UpdateCookies(id string, cookies map[string]string) error {
 	cur.LastValidated = snap.LastValidated
 	cur.LastError = snap.LastError
 	cur.RealEmail = snap.RealEmail
+	cur.AliasTotal = snap.AliasTotal
+	cur.AliasActive = snap.AliasActive
 	if cur.ICloudEmail == "" {
 		cur.ICloudEmail = snap.ICloudEmail
 	}

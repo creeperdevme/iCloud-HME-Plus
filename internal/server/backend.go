@@ -216,6 +216,9 @@ func (b *managerBackend) CreateAlias(accountID, label string) (*hme.CreateResult
 		return nil, mapAccountErr(err)
 	}
 	result, err := client.CreateAlias(label, 5)
+	if err == nil {
+		b.refreshAliasCounts(accountID, client)
+	}
 	_ = b.mgr.SaveCookies(accountID, client.Cookies)
 	if err != nil {
 		return nil, classifyUpstreamErr("建立信箱失敗", err)
@@ -234,7 +237,16 @@ func (b *managerBackend) ListAliases(accountID string) ([]hme.Alias, error) {
 	if err != nil {
 		return nil, classifyUpstreamErr("取得別名列表失敗", err)
 	}
+	_ = b.mgr.UpdateAliasCounts(accountID, aliases)
 	return aliases, nil
+}
+
+// refreshAliasCounts 在別名異動後重新取得列表並更新帳號統計;
+// 失敗只會讓統計維持舊值,不影響主操作結果。
+func (b *managerBackend) refreshAliasCounts(accountID string, client *hme.Client) {
+	if aliases, err := client.ListAliases(); err == nil {
+		_ = b.mgr.UpdateAliasCounts(accountID, aliases)
+	}
 }
 
 // SetAliasActive 停用或激活別名。
@@ -248,6 +260,9 @@ func (b *managerBackend) SetAliasActive(accountID, anonymousID string, active bo
 		success, err = client.ReactivateHME(anonymousID)
 	} else {
 		success, err = client.DeactivateHME(anonymousID)
+	}
+	if err == nil && success {
+		b.refreshAliasCounts(accountID, client)
 	}
 	_ = b.mgr.SaveCookies(accountID, client.Cookies)
 	if err != nil {
@@ -269,6 +284,9 @@ func (b *managerBackend) DeleteAlias(accountID, anonymousID string) error {
 		return mapAccountErr(err)
 	}
 	err = client.Delete(anonymousID)
+	if err == nil {
+		b.refreshAliasCounts(accountID, client)
+	}
 	_ = b.mgr.SaveCookies(accountID, client.Cookies)
 	if err != nil {
 		return classifyUpstreamErr("刪除失敗", err)

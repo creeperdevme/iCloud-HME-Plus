@@ -5,6 +5,8 @@ import (
 	"net/mail"
 	"strings"
 	"testing"
+
+	"icloud-hme/internal/hme"
 )
 
 // TestSummaryDoesNotSerializeSecrets 驗證 Summary 序列化後不包含任何秘密。
@@ -187,6 +189,43 @@ func TestListSummariesStableOrder(t *testing.T) {
 	want := []string{"acc_1", "acc_4", "acc_2", "acc_3"}
 	if strings.Join(got, ",") != strings.Join(want, ",") {
 		t.Fatalf("排序錯誤: 得到 %v,期望 %v", got, want)
+	}
+}
+
+// TestUpdateAliasCounts 驗證別名統計會依最新列表重算(不累加)並持久化,
+// list_accounts 讀到的 Summary 也會跟著更新。
+func TestUpdateAliasCounts(t *testing.T) {
+	dir := t.TempDir()
+	m, err := NewManager(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sum, err := m.AddAccountWithInput(AddAccountInput{Name: "主號", ICloudEmail: "a@icloud.com"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	aliases := []hme.Alias{{Email: "x@icloud.com", Active: true}, {Email: "y@icloud.com", Active: true}, {Email: "z@icloud.com"}}
+	if err := m.UpdateAliasCounts(sum.ID, aliases); err != nil {
+		t.Fatal(err)
+	}
+	if got := m.ListSummaries()[0]; got.AliasTotal != 3 || got.AliasActive != 2 {
+		t.Fatalf("期望 3/2,得到 %d/%d", got.AliasTotal, got.AliasActive)
+	}
+
+	// 再次更新應重算而非累加。
+	if err := m.UpdateAliasCounts(sum.ID, aliases[:1]); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.Reload(); err != nil {
+		t.Fatal(err)
+	}
+	if got := m.ListSummaries()[0]; got.AliasTotal != 1 || got.AliasActive != 1 {
+		t.Fatalf("重載後期望 1/1,得到 %d/%d", got.AliasTotal, got.AliasActive)
+	}
+
+	if err := m.UpdateAliasCounts("acc_missing", aliases); err == nil {
+		t.Fatal("不存在的帳號應當報錯")
 	}
 }
 
